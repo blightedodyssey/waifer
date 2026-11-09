@@ -26,6 +26,7 @@ import (
 	"aether/internal/update"
 	"aether/internal/wallhaven"
 	"aether/internal/wallpaper"
+	"aether/internal/winsys"
 	"aether/ipc"
 
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -53,6 +54,10 @@ type App struct {
 
 // IsMacOS returns true when running on macOS.
 func (a *App) IsMacOS() bool { return runtime.GOOS == "darwin" }
+
+// IsWindows returns true when running on Windows. The frontend uses it to
+// show the app targets that exist on this platform.
+func (a *App) IsWindows() bool { return runtime.GOOS == "windows" }
 
 // GetFocusTab returns the tab to focus on startup (empty = default editor).
 func (a *App) GetFocusTab() string { return a.focusTab }
@@ -507,6 +512,9 @@ func (a *App) ApplyWallpaperOnly(path string) error {
 	}
 	if err := wallpaper.ValidateImageFile(path); err != nil {
 		return err
+	}
+	if runtime.GOOS == "windows" {
+		return winsys.SetWallpaper(path)
 	}
 	return omarchy.SetBackground(path)
 }
@@ -1167,7 +1175,15 @@ var allExportableApps = map[string]bool{
 	"foot": true, "ghostty": true, "hyprland": true, "hyprlock": true,
 	"icons": true, "kitty": true, "mako": true, "neovim": true,
 	"swayosd": true, "vencord": true, "vscode": true, "walker": true,
-	"warp": true, "waybar": true, "wofi": true, "zed": true,
+	"warp": true, "waybar": true, "windows-terminal": true, "wofi": true, "zed": true,
+}
+
+// windowsHiddenApps are Linux desktop integrations that have no meaningful
+// Windows target. They are filtered out of the app lists on Windows.
+var windowsHiddenApps = map[string]bool{
+	"btop": true, "chromium": true, "foot": true, "ghostty": true,
+	"hyprland": true, "hyprlock": true, "icons": true, "kitty": true,
+	"mako": true, "swayosd": true, "walker": true, "waybar": true, "wofi": true,
 }
 
 // ExportTheme exports the current theme to a user-chosen directory.
@@ -1412,6 +1428,9 @@ func (a *App) GetTemplateColors() map[string][]string {
 
 	for _, f := range files {
 		appName := theme.GetAppNameFromFileName(f)
+		if runtime.GOOS == "windows" && windowsHiddenApps[appName] {
+			continue
+		}
 		if omarchy.IsInstalled() && !theme.SupportsOmarchyOverride(appName) {
 			continue
 		}

@@ -41,6 +41,7 @@ const APP_LABELS: Record<string, string> = {
     walker: 'Walker',
     warp: 'Warp',
     waybar: 'Waybar',
+    'windows-terminal': 'Windows Terminal',
     wofi: 'Wofi',
     zellij: 'Zellij',
 };

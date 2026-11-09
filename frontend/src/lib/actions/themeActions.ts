@@ -96,7 +96,7 @@ async function runApply(
         updateExisting?: boolean;
         isCurrent?: () => boolean;
     } = {}
-): Promise<{success: boolean; count: number} | null> {
+): Promise<{success: boolean; count: number; warnings: string[]} | null> {
     const signature = getThemeSignature(request);
     await initOmarchyCapabilities();
     const {ApplyTheme, SaveAndApplyTheme} = await import(
@@ -123,7 +123,11 @@ async function runApply(
             request.lightMode
         );
     }
-    return {success: !!result.success, count};
+    return {
+        success: !!result.success,
+        count,
+        warnings: result.warnings ?? [],
+    };
 }
 
 export async function applyTheme(): Promise<void> {
@@ -137,7 +141,12 @@ export async function applyTheme(): Promise<void> {
             ? ` with ${result.count} app override${result.count === 1 ? '' : 's'}`
             : '';
         if (result.success) {
-            showToast(`Theme applied${suffix}`);
+            const warningSuffix = result.warnings.length
+                ? ` · ${result.warnings.length} integration warning${
+                      result.warnings.length === 1 ? '' : 's'
+                  }`
+                : '';
+            showToast(`Theme applied${suffix}${warningSuffix}`);
         } else {
             showToast(`Theme files generated${suffix}`);
         }

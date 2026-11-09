@@ -9,6 +9,7 @@ import (
 	"aether/internal/omarchy"
 	"aether/internal/platform"
 	"aether/internal/wallpaper"
+	"aether/internal/winsys"
 )
 
 // IsOmarchyInstalled reports whether the public Omarchy CLI is available.
@@ -62,6 +63,10 @@ func ClearTheme() error {
 	overrideCss := filepath.Join(platform.ThemeDir(), "aether.override.css")
 	if err := platform.DeleteFile(overrideCss); err != nil {
 		log.Printf("Warning: could not delete theme override CSS: %v", err)
+	}
+
+	if err := winsys.Restore(); err != nil {
+		log.Printf("Warning: could not restore Windows settings: %v", err)
 	}
 
 	if !IsOmarchyInstalled() {

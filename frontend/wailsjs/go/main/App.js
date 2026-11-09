@@ -190,6 +190,10 @@ export function IsPreviewCached(arg1) {
   return window['go']['main']['App']['IsPreviewCached'](arg1);
 }
 
+export function IsWindows() {
+  return window['go']['main']['App']['IsWindows']();
+}
+
 export function ListBlueprints() {
   return window['go']['main']['App']['ListBlueprints']();
 }

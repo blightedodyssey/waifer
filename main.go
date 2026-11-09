@@ -16,6 +16,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	wailslinux "github.com/wailsapp/wails/v2/pkg/options/linux"
 	wailsmac "github.com/wailsapp/wails/v2/pkg/options/mac"
+	wailswindows "github.com/wailsapp/wails/v2/pkg/options/windows"
 )
 
 //go:embed all:frontend/dist
@@ -96,6 +97,11 @@ func main() {
 			ProgramName: "Aether",
 			// A non-nil Linux options struct bypasses Wails' GPU-safe default.
 			WebviewGpuPolicy: wailslinux.WebviewGpuPolicyNever,
+		},
+		Windows: &wailswindows.Options{
+			// Follow the active Windows app theme; Aether switches it when a
+			// light or dark palette is applied.
+			Theme: wailswindows.SystemDefault,
 		},
 		Mac: &wailsmac.Options{
 			TitleBar:             wailsmac.TitleBarHiddenInset(),

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -16,30 +17,32 @@ import (
 	"aether/internal/omarchy"
 	"aether/internal/platform"
 	"aether/internal/template"
+	"aether/internal/winsys"
 )
 
 // templateAppNameMap maps template file names to standardised app names,
 // used for per-app override lookups.
 var templateAppNameMap = map[string]string{
-	"alacritty.toml":    "alacritty",
-	"aether.zed.json":   "zed",
-	"btop.theme":        "btop",
-	"chromium.theme":    "chromium",
-	"foot.ini":          "foot",
-	"ghostty.conf":      "ghostty",
-	"hyprland.conf":     "hyprland",
-	"hyprlock.conf":     "hyprlock",
-	"icons.theme":       "icons",
-	"kitty.conf":        "kitty",
-	"mako.ini":          "mako",
-	"neovim.lua":        "neovim",
-	"swayosd.css":       "swayosd",
-	"walker.css":        "walker",
-	"waybar.css":        "waybar",
-	"wofi.css":          "wofi",
-	"vencord.theme.css": "vencord",
-	"warp.yaml":         "warp",
-	"colors.toml":       "colors",
+	"alacritty.toml":        "alacritty",
+	"aether.zed.json":       "zed",
+	"btop.theme":            "btop",
+	"chromium.theme":        "chromium",
+	"foot.ini":              "foot",
+	"ghostty.conf":          "ghostty",
+	"hyprland.conf":         "hyprland",
+	"hyprlock.conf":         "hyprlock",
+	"icons.theme":           "icons",
+	"kitty.conf":            "kitty",
+	"mako.ini":              "mako",
+	"neovim.lua":            "neovim",
+	"swayosd.css":           "swayosd",
+	"walker.css":            "walker",
+	"waybar.css":            "waybar",
+	"wofi.css":              "wofi",
+	"vencord.theme.css":     "vencord",
+	"warp.yaml":             "warp",
+	"windows-terminal.json": "windows-terminal",
+	"colors.toml":           "colors",
 }
 
 // omarchyThemeFiles are files the current Omarchy theme loader consumes
@@ -90,6 +93,14 @@ type Settings struct {
 // includesApp supports explicit opt-in targets while preserving callers that
 // still use the legacy special flags and exclusion map.
 func (s Settings) includesApp(app string) bool {
+	// Windows Terminal is the primary terminal target on Windows, so it is on
+	// by default there unless the user explicitly turned it off.
+	if app == "windows-terminal" && runtime.GOOS == "windows" {
+		if enabled, ok := s.IncludedApps[app]; ok {
+			return enabled
+		}
+		return true
+	}
 	if app == "icons" {
 		if enabled, ok := s.IncludedApps[app]; ok {
 			return enabled
@@ -129,9 +140,10 @@ func DefaultApplySettings() Settings {
 
 // ApplyResult is returned by ApplyTheme with the outcome of theme application.
 type ApplyResult struct {
-	Success   bool   `json:"success"`
-	IsOmarchy bool   `json:"isOmarchy"`
-	ThemePath string `json:"themePath"`
+	Success   bool     `json:"success"`
+	IsOmarchy bool     `json:"isOmarchy"`
+	ThemePath string   `json:"themePath"`
+	Warnings  []string `json:"warnings,omitempty"`
 }
 
 // Writer processes templates from an embed.FS and generates theme files.
@@ -250,8 +262,11 @@ func (w *Writer) applyEditorThemes(
 	includeVscode bool,
 ) error {
 	if includeZed || len(appOverrides["zed"]) > 0 {
-		if err := ApplyZedTheme(themeDir); err != nil {
-			return fmt.Errorf("apply Zed theme: %w", err)
+		// On Windows winsys installs the theme into %APPDATA%\Zed.
+		if runtime.GOOS != "windows" {
+			if err := ApplyZedTheme(themeDir); err != nil {
+				return fmt.Errorf("apply Zed theme: %w", err)
+			}
 		}
 	}
 	if includeVscode || len(appOverrides["vscode"]) > 0 {
@@ -455,7 +470,23 @@ func (w *Writer) ApplyTheme(state *ThemeState, settings Settings) (*ApplyResult,
 	if err := template.ProcessCustomApps(themeDir, variables); err != nil {
 		return &ApplyResult{Success: false, ThemePath: themeDir}, fmt.Errorf("process custom apps: %w", err)
 	}
-	return &ApplyResult{Success: true, ThemePath: themeDir}, nil
+
+	winResult, err := winsys.Apply(winsys.Options{
+		Variables:       variables,
+		LightMode:       state.LightMode,
+		WallpaperPath:   state.WallpaperPath,
+		ThemeDir:        themeDir,
+		IncludeTerminal: settings.includesApp("windows-terminal"),
+		IncludeNeovim:   settings.includesApp("neovim"),
+		IncludeZed:      settings.includesApp("zed"),
+	})
+	if err != nil {
+		log.Printf("windows theme application: %v", err)
+	}
+	for _, warning := range winResult.Warnings {
+		log.Printf("windows theme application: %s", warning)
+	}
+	return &ApplyResult{Success: true, ThemePath: themeDir, Warnings: winResult.Warnings}, nil
 }
 
 // GenerateOnly generates theme files to the specified output path without

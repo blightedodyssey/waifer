@@ -17,6 +17,11 @@ func ConfigDir() string {
 
 // CacheDir returns ~/.cache/aether.
 func CacheDir() string {
+	if runtime.GOOS == "windows" {
+		if local := os.Getenv("LOCALAPPDATA"); local != "" {
+			return filepath.Join(local, "aether", "cache")
+		}
+	}
 	dir, err := os.UserCacheDir()
 	if err != nil {
 		dir = filepath.Join(homeDir(), ".cache")
@@ -27,7 +32,13 @@ func CacheDir() string {
 // DataDir returns the platform-specific data directory for Aether.
 // Linux: ~/.local/share/aether (XDG)
 // macOS: ~/Library/Application Support/aether (via os.UserConfigDir)
+// Windows: %LOCALAPPDATA%\aether\data
 func DataDir() string {
+	if runtime.GOOS == "windows" {
+		if local := os.Getenv("LOCALAPPDATA"); local != "" {
+			return filepath.Join(local, "aether", "data")
+		}
+	}
 	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
 		return filepath.Join(xdg, "aether")
 	}
@@ -78,6 +89,9 @@ func OmarchyThemeDir() string {
 
 // WallpaperDir returns ~/Wallpapers, the default local scan directory.
 func WallpaperDir() string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(homeDir(), "Pictures", "Wallpapers")
+	}
 	return filepath.Join(homeDir(), "Wallpapers")
 }
 

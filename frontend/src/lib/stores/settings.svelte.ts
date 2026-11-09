@@ -73,6 +73,10 @@ export function updateSettings(partial: Partial<Settings>): void {
 
 export function isAppIncluded(app: string): boolean {
     if (app === 'icons') return settings.includedApps?.icons !== false;
+    // Windows Terminal is the default terminal target on Windows; onboard it
+    // unless the user explicitly disabled it.
+    if (app === 'windows-terminal')
+        return settings.includedApps?.['windows-terminal'] !== false;
     return !!settings.includedApps?.[app];
 }
 

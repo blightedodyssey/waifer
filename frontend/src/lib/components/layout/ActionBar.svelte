@@ -49,6 +49,7 @@
         getOmarchyAvailable,
         initOmarchyCapabilities,
     } from '$lib/stores/omarchy.svelte';
+    import {getIsWindows} from '$lib/stores/platform.svelte';
 
     let showImportMenu = $state(false);
     let showApplyMenu = $state(false);
@@ -87,7 +88,7 @@
     let apiKeySet = $derived(getApiKey() !== '');
     let totalResults = $derived(getTotalResults());
 
-    const exportAppGroups = [
+    const allExportAppGroups = [
         {
             label: 'Editor themes',
             apps: [
@@ -104,6 +105,7 @@
                 {key: 'ghostty', name: 'Ghostty'},
                 {key: 'kitty', name: 'Kitty'},
                 {key: 'warp', name: 'Warp'},
+                {key: 'windows-terminal', name: 'Windows Terminal'},
             ],
         },
         {
@@ -130,9 +132,36 @@
         },
     ] as const;
 
+    const windowsHiddenApps = new Set([
+        'btop',
+        'chromium',
+        'foot',
+        'ghostty',
+        'hyprland',
+        'hyprlock',
+        'icons',
+        'kitty',
+        'mako',
+        'swayosd',
+        'walker',
+        'waybar',
+        'wofi',
+    ]);
+
+    let exportAppGroups = $derived(
+        allExportAppGroups
+            .map(group => ({
+                ...group,
+                apps: group.apps.filter(
+                    app => !getIsWindows() || !windowsHiddenApps.has(app.key)
+                ),
+            }))
+            .filter(group => group.apps.length > 0)
+    );
+
     function createDefaultExportApps(): Record<string, boolean> {
         const apps: Record<string, boolean> = {};
-        for (const group of exportAppGroups) {
+        for (const group of allExportAppGroups) {
             for (const app of group.apps) {
                 apps[app.key] = true;
             }
@@ -141,11 +170,22 @@
     }
 
     let exportApps = $state<Record<string, boolean>>(createDefaultExportApps());
+
+    $effect(() => {
+        if (!getIsWindows()) return;
+        for (const key of windowsHiddenApps) {
+            if (exportApps[key]) exportApps[key] = false;
+        }
+    });
     let exportAppCount = $derived(
         exportAppGroups.reduce((sum, group) => sum + group.apps.length, 0)
     );
     let exportSelectedCount = $derived(
-        Object.values(exportApps).filter(Boolean).length
+        exportAppGroups.reduce(
+            (sum, group) =>
+                sum + group.apps.filter(app => exportApps[app.key]).length,
+            0
+        )
     );
 
     function setAllExportApps(enabled: boolean) {
