@@ -11,6 +11,7 @@
     import SectionLabel from '$lib/components/shared/SectionLabel.svelte';
     import Segmented from '$lib/components/shared/Segmented.svelte';
     import {getLightMode, setLightMode} from '$lib/stores/theme.svelte';
+    import {getIsWindows} from '$lib/stores/platform.svelte';
     import {
         getOmarchyAvailable,
         initOmarchyCapabilities,
@@ -51,7 +52,9 @@
 
     <SectionLabel label="Adjust" />
     <ColorAdjustments />
-    <IconThemePicker />
+    {#if !getIsWindows()}
+        <IconThemePicker />
+    {/if}
     <AccessibilityPanel />
 
     <SectionLabel label="Targets" />

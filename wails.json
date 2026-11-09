@@ -9,5 +9,12 @@
   "author": {
     "name": "Bjarne Øverli",
     "email": "bjarne.oeverli@gmail.com"
+  },
+  "info": {
+    "companyName": "Aether (Windows port)",
+    "productName": "Aether",
+    "productVersion": "4.32.0",
+    "copyright": "MIT License",
+    "comments": "Windows port of the Aether desktop theming app"
   }
 }
