@@ -5,6 +5,7 @@
         toggleAppInclusion,
     } from '$lib/stores/settings.svelte';
     import {setTargetsVisible} from '$lib/stores/ui.svelte';
+    import {getIsWindows} from '$lib/stores/platform.svelte';
     import CloseIcon from '$lib/components/shared/CloseIcon.svelte';
     import {
         SPECIAL_APP_FLAGS,
@@ -14,11 +15,25 @@
     } from '$lib/constants/apps';
 
     let appList = $state<string[]>([]);
+    // Let me update the TargetAppsStrip to include AI harnesses
+    const windowsShellTargets = [
+        'system',
+        'win11-start-menu',
+        'win11-notifications',
+        'win11-taskbar',
+        'win11-file-explorer',
+        'browser',
+        'yasb',
+        'glazewm',
+        'opencode',
+        'hermes',
+        'pi',
+        'claude-code',
+        'jan',
+        'aider',
+    ];
 
     onMount(async () => {
-        // Specials always appear: GetTemplateColors filters out apps whose
-        // templates have no color variables (vscode.json is just a pointer).
-        // Inject all specials unconditionally so the target list is stable.
         try {
             const {GetTemplateColors} = await import(
                 '../../../../wailsjs/go/main/App'
@@ -32,9 +47,20 @@
                         !ALWAYS_INCLUDED_APPS.has(k)
                 )
                 .sort();
-            appList = [...SPECIAL_APP_ORDER, ...rest];
+            const base = [...SPECIAL_APP_ORDER, ...rest];
+            // Inject Windows shell targets on Windows before the rest.
+            if (getIsWindows()) {
+                const withoutShell = base.filter(
+                    k => !windowsShellTargets.includes(k)
+                );
+                appList = [...windowsShellTargets, ...withoutShell];
+            } else {
+                appList = base;
+            }
         } catch {
-            appList = [...SPECIAL_APP_ORDER];
+            appList = getIsWindows()
+                ? [...windowsShellTargets, ...SPECIAL_APP_ORDER]
+                : [...SPECIAL_APP_ORDER];
         }
     });
 </script>

@@ -1,0 +1,4 @@
+# target: %LOCALAPPDATA%\RenderTest\output.txt
+background=#1e1e2e
+foreground=#cdd6f4
+accent_hex=cba6f7

@@ -7,22 +7,27 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 
+	"aether/internal/aetherdir"
 	"aether/internal/batch"
 	"aether/internal/blueprint"
+	"aether/internal/browsers"
 	"aether/internal/color"
 	"aether/internal/extraction"
 	"aether/internal/favexport"
 	"aether/internal/favorites"
 	"aether/internal/githubsource"
+	"aether/internal/harnesses"
 	"aether/internal/icontheme"
 	"aether/internal/omarchy"
 	"aether/internal/platform"
 	"aether/internal/template"
 	"aether/internal/theme"
+	"aether/internal/tray"
 	"aether/internal/update"
 	"aether/internal/wallhaven"
 	"aether/internal/wallpaper"
@@ -164,6 +169,11 @@ func (a *App) startup(ctx context.Context) {
 	// Pick up a one-click import that was staged before the GUI started
 	// (e.g. browser clicked aether:// while Aether was closed).
 	a.loadPendingImport()
+
+	// Start system tray (Windows + Linux; noop on other platforms)
+	if runtime.GOOS == "windows" || runtime.GOOS == "linux" {
+		a.startTray()
+	}
 }
 
 // CloseIPC shuts down the IPC server. Called on app exit.
@@ -1220,6 +1230,7 @@ var windowsHiddenApps = map[string]bool{
 	"btop": true, "chromium": true, "foot": true, "ghostty": true,
 	"hyprland": true, "hyprlock": true, "icons": true, "kitty": true,
 	"mako": true, "swayosd": true, "walker": true, "waybar": true, "wofi": true,
+	"zellij": true,
 }
 
 // ExportTheme exports the current theme to a user-chosen directory.
@@ -1501,10 +1512,225 @@ func (a *App) GetTemplateColors() map[string][]string {
 	return result
 }
 
+// ---------------------------------------------------------------------------
+// Aetherdir / Ecosystem Status
+// ---------------------------------------------------------------------------
+
+// GetAetherDirStatus returns metadata about the %LOCALAPPDATA%\Aether\ ecosystem
+// directories (current, templates, hooks) for display in the Settings panel.
+type AetherDirStatus struct {
+	CurrentThemePath string `json:"currentThemePath"`
+	HasCurrentTheme  bool   `json:"hasCurrentTheme"`
+	TemplateCount    int    `json:"templateCount"`
+	HasHookScript    bool   `json:"hasHookScript"`
+	TemplatesDir     string `json:"templatesDir"`
+	HooksDir         string `json:"hooksDir"`
+}
+
+func (a *App) GetAetherDirStatus() AetherDirStatus {
+	_ = aetherdir.Ensure()
+	status := AetherDirStatus{
+		TemplatesDir: aetherdir.TemplatesDir(),
+		HooksDir:     aetherdir.HooksDir(),
+	}
+
+	// Check current theme
+	currentDir := aetherdir.CurrentDir()
+	if entries, err := os.ReadDir(currentDir); err == nil {
+		for _, e := range entries {
+			if e.Name() == "colors.toml" || e.Name() == "theme.md" {
+				status.HasCurrentTheme = true
+				status.CurrentThemePath = currentDir
+				break
+			}
+		}
+	}
+
+	// Count .tpl templates
+	if entries, err := os.ReadDir(aetherdir.TemplatesDir()); err == nil {
+		for _, e := range entries {
+			if !e.IsDir() && strings.HasSuffix(strings.ToLower(e.Name()), ".tpl") {
+				status.TemplateCount++
+			}
+		}
+	}
+
+	// Check for hook scripts
+	hooksDir := aetherdir.HooksDir()
+	if entries, err := os.ReadDir(hooksDir); err == nil {
+		for _, e := range entries {
+			name := strings.ToLower(e.Name())
+			if name == "theme-set.ps1" || name == "theme-set.bat" {
+				status.HasHookScript = true
+				break
+			}
+		}
+	}
+
+	return status
+}
+
+// ListUserTemplates returns the names of all .tpl files in the user templates
+// directory (%LOCALAPPDATA%\Aether\templates\*.tpl).
+func (a *App) ListUserTemplates() ([]string, error) {
+	_ = aetherdir.Ensure()
+	entries, err := os.ReadDir(aetherdir.TemplatesDir())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var names []string
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(strings.ToLower(e.Name()), ".tpl") {
+			names = append(names, e.Name())
+		}
+	}
+	return names, nil
+}
+
+// GetCurrentThemePath returns the path to the active theme directory
+// (%LOCALAPPDATA%\Aether\current\ or the App's configured ThemeDir).
+func (a *App) GetCurrentThemePath() string {
+	currentDir := aetherdir.CurrentDir()
+	if _, err := os.Stat(filepath.Join(currentDir, "colors.toml")); err == nil {
+		return currentDir
+	}
+	return platform.ThemeDir()
+}
+
+// OpenFolderInExplorer opens a local folder in Windows File Explorer or the
+// equivalent file manager on other platforms. Uses ShellExecuteW "open" verb.
+func (a *App) OpenFolderInExplorer(folderPath string) error {
+	if folderPath == "" {
+		return fmt.Errorf("no path provided")
+	}
+	// Verify the path exists
+	info, err := os.Stat(folderPath)
+	if err != nil {
+		return fmt.Errorf("path %q does not exist: %w", folderPath, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("path %q is not a directory", folderPath)
+	}
+	if runtime.GOOS == "windows" {
+		return windowsOpenExplorer(folderPath)
+	}
+	// Linux / macOS: use xdg-open / open
+	return openFileManager(folderPath)
+}
+
+// GetHeadlessCLICommand returns the aether.exe command line for the currently
+// active theme, suitable for Flow Launcher / PowerToys Run / AutoHotkey.
+func (a *App) GetHeadlessCLICommand() string {
+	themePath := a.GetCurrentThemePath()
+	if themePath == "" {
+		return ""
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		exe = "aether.exe"
+	}
+	// Try to find the theme name from the path
+	name := filepath.Base(themePath)
+	return fmt.Sprintf(`"%s" --theme "%s"`, exe, name)
+}
+
+// GetDetectedHarnesses returns the list of detected AI harness installations.
+func (a *App) GetDetectedHarnesses() harnesses.DetectedHarnesses {
+	return harnesses.Detect()
+}
+
+// GetDetectedBrowsers returns the list of detected browsers and the path to
+// the generated unpacked Chromium extension for display in the UI.
+func (a *App) GetDetectedBrowsers() browsers.DetectedBrowsers {
+	return browsers.GetDetectedBrowsers()
+}
+
+// GetTemplateVarNames returns the known color variable names used by the
+// template engine (for tooltips / autocomplete in the frontend).
+func (a *App) GetTemplateVarNames() []string {
+	return []string{
+		"background", "foreground",
+		"bg", "fg",
+		"black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
+		"bright_black", "bright_red", "bright_green", "bright_yellow",
+		"bright_blue", "bright_magenta", "bright_cyan", "bright_white",
+		"accent", "cursor", "selection_foreground", "selection_background",
+		"color0", "color1", "color2", "color3", "color4", "color5", "color6", "color7",
+		"color8", "color9", "color10", "color11", "color12", "color13", "color14", "color15",
+		"dark_bg", "darker_bg", "lighter_bg",
+		"dark_fg", "light_fg", "bright_fg",
+		"muted", "orange", "brown", "selection",
+		"mode", "theme_type",
+	}
+}
+
 // ResetState resets the theme state to defaults.
 func (a *App) ResetState() {
 	a.history.Push(*a.state)
 	*a.state = *newSeededState()
+}
+
+// ---------------------------------------------------------------------------
+// System Tray
+// ---------------------------------------------------------------------------
+
+// startTray initializes the system tray icon and global hotkey. Called
+// once after the window is shown.
+func (a *App) startTray() {
+	cmdCh := tray.New()
+	go func() {
+		for cmd := range cmdCh {
+			switch cmd.Action {
+			case tray.CmdShowWindow:
+				a.trayShowWindow()
+			case tray.CmdReapply:
+				a.trayReapply()
+			case tray.CmdQuit:
+				a.trayQuit()
+			}
+		}
+	}()
+}
+
+func (a *App) trayShowWindow() {
+	if a.ctx == nil {
+		return
+	}
+	// Emit event so the frontend can do any tab-switching needed
+	wailsrt.EventsEmit(a.ctx, "tray-show-window", nil)
+	wailsrt.WindowShow(a.ctx)
+}
+
+func (a *App) trayReapply() {
+	if a.ctx == nil || len(a.state.Palette) < 16 {
+		return
+	}
+	// Re-apply the current theme state
+	result, err := a.ApplyTheme(ApplyThemeRequest{
+		Palette:          a.state.Palette[:],
+		WallpaperPath:    a.state.WallpaperPath,
+		WallpaperBlur:    a.state.WallpaperBlur,
+		LightMode:        a.state.LightMode,
+		AdditionalImages: a.state.AdditionalImages,
+		ExtendedColors:   a.state.ExtendedColors,
+		NativeColors:     a.state.NativeColors,
+		Settings:         theme.DefaultApplySettings(),
+		AppOverrides:     a.state.AppOverrides,
+		IconTheme:        a.state.IconTheme,
+	})
+	if err != nil {
+		log.Printf("[tray] re-apply: %v", err)
+	}
+	_ = result
+}
+
+func (a *App) trayQuit() {
+	if a.ctx != nil {
+		wailsrt.Quit(a.ctx)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -1735,6 +1961,21 @@ func (a *App) buildAdjustments(req ipc.Request) color.Adjustments {
 
 // --- Config JSON helpers ---
 
+func windowsOpenExplorer(path string) error {
+	// Use ShellExecuteW "open" verb to open the folder in Explorer.
+	// This is the simplest reliable Windows approach without CGO.
+	return execCommand("explorer.exe", path)
+}
+
+func openFileManager(path string) error {
+	return execCommand("xdg-open", path)
+}
+
+func execCommand(name, arg string) error {
+	cmd := exec.Command(name, arg)
+	return cmd.Start()
+}
+
 func readConfigJSON(filename string) map[string]interface{} {
 	v, err := platform.ReadJSON[map[string]interface{}](filepath.Join(platform.ConfigDir(), filename))
 	if err != nil {
@@ -1757,13 +1998,20 @@ func wallpaperFolderFromConfig(config map[string]interface{}) string {
 	if !ok || folder == "" {
 		return defaultDir
 	}
-	// Self-heal if a leftover Go test path from AppData\Local\Temp\Test... was persisted.
-	lower := strings.ToLower(filepath.ToSlash(folder))
-	if strings.Contains(lower, "/temp/test") {
-		if info, err := os.Stat(folder); err != nil || !info.IsDir() {
-			config[wallpaperFolderSetting] = defaultDir
-			_ = writeConfigJSON("settings.json", config)
-			return defaultDir
+	// Self-heal if a leftover Go test temp-directory leak was persisted into the
+	// real settings.json (e.g. from a previous test writing a TempDir/TestName/…
+	// into the config). The first component after TempDir must start with
+	// "test" (case-insensitive, matching Go's t.TempDir() naming).
+	tempDir := os.TempDir()
+	rel, err := filepath.Rel(tempDir, folder)
+	if err == nil {
+		parts := strings.Split(rel, string(filepath.Separator))
+		if len(parts) >= 2 && strings.HasPrefix(strings.ToLower(parts[0]), "test") {
+			if info, err := os.Stat(folder); err != nil || !info.IsDir() {
+				config[wallpaperFolderSetting] = defaultDir
+				_ = writeConfigJSON("settings.json", config)
+				return defaultDir
+			}
 		}
 	}
 	return folder

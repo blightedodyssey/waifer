@@ -1,6 +1,7 @@
 <script lang="ts">
     import {onMount} from 'svelte';
     import {showToast} from '$lib/stores/ui.svelte';
+    import {getIsWindows} from '$lib/stores/platform.svelte';
 
     type ReleaseStatus = {
         currentVersion: string;
@@ -20,7 +21,7 @@
         status === 'checking'
             ? 'Checking for Aether updates'
             : status === 'available'
-              ? `Aether ${release?.latestVersion} is available. Click to upgrade`
+              ? `Aether ${release?.latestVersion} is available. Click to view release`
               : status === 'current'
                 ? `Aether ${release?.currentVersion} is up to date. Click to check again`
                 : 'Could not check for updates. Click to try again'
@@ -60,6 +61,19 @@
             await refresh();
             return;
         }
+        // On Windows: open the release page in the default browser
+        if (getIsWindows() && release?.releaseURL) {
+            try {
+                const {BrowserOpenURL} = await import(
+                    '../../../../wailsjs/runtime/runtime'
+                );
+                BrowserOpenURL(release.releaseURL);
+            } catch {
+                showToast('Open your browser and visit the Aether releases page', 4000);
+            }
+            return;
+        }
+        // Non-Windows: try terminal upgrade
         try {
             const {StartUpgrade} = await import(
                 '../../../../wailsjs/go/main/App'

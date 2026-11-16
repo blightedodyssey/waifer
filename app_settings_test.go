@@ -109,7 +109,9 @@ func TestScanLocalWallpapersReportsMissingConfiguredFolder(t *testing.T) {
 	t.Setenv("LOCALAPPDATA", t.TempDir())
 
 	app := NewApp()
-	missing := filepath.Join(home, "custom-drive", "missing")
+	// Use a path entirely outside TempDir so the self-heal leak-detector
+	// never matches it.
+	missing := "C:\\__aether_test_missing_folder__\\wallpapers"
 	if err := app.SaveSettings(map[string]interface{}{
 		wallpaperFolderSetting: missing,
 	}); err != nil {

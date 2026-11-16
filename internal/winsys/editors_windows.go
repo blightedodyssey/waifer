@@ -3,11 +3,15 @@
 package winsys
 
 import (
+	"aether/internal/browsers"
+	"aether/internal/harnesses"
+
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -30,6 +34,19 @@ func Apply(opts Options) (Result, error) {
 			return []string{"wallpaper"}, nil
 		}})
 	}
+
+	// Always write the native .theme file so Personalization > Themes shows
+	// "Aether — <Theme Name>" instead of "Custom".
+	tasks = append(tasks, applyTask{run: func() ([]string, error) {
+		wp := opts.WallpaperPath
+		if wp != "" {
+			wp = managedWallpaperPath(wp)
+		}
+		if err := WriteThemeFile(opts.Variables, wp, opts.LightMode); err != nil {
+			return nil, fmt.Errorf("theme file: %w", err)
+		}
+		return []string{"theme-file"}, nil
+	}})
 
 	if opts.IncludeSystem {
 		tasks = append(tasks, applyTask{run: func() ([]string, error) {
@@ -95,6 +112,68 @@ func Apply(opts Options) (Result, error) {
 				return nil, fmt.Errorf("obsidian: %w", err)
 			}
 			return []string{"obsidian"}, nil
+		}})
+	}
+
+	// Phase 4: Windows 11 Windhawk shell stylers.
+	if opts.IncludeWin11StartMenu || opts.IncludeWin11Notifications || opts.IncludeWin11Taskbar || opts.IncludeWin11FileExplorer {
+		tasks = append(tasks, applyTask{run: func() ([]string, error) {
+			applied, warnings := ApplyWindhawkTheme(opts.Variables, opts.LightMode)
+			if len(warnings) > 0 {
+				return applied, errors.New(strings.Join(warnings, "; "))
+			}
+			return applied, nil
+		}})
+	}
+
+	// Phase 6: Browser theming (Chrome, Edge, Firefox, etc.).
+	if opts.IncludeBrowser {
+		tasks = append(tasks, applyTask{run: func() ([]string, error) {
+			applied, warnings := ApplyBrowserTheme(opts.Variables)
+			if len(warnings) > 0 {
+				return applied, errors.New(strings.Join(warnings, "; "))
+			}
+			return applied, nil
+		}})
+	}
+
+	// YASB bar theming (opt-in).
+	if opts.IncludeYasb {
+		tasks = append(tasks, applyTask{run: func() ([]string, error) {
+			if err := ApplyYasbTheme(opts.Variables); err != nil {
+				return nil, fmt.Errorf("yasb: %w", err)
+			}
+			return []string{"yasb"}, nil
+		}})
+	}
+
+	// GlazeWM window-manager theming (opt-in).
+	if opts.IncludeGlazeWM {
+		tasks = append(tasks, applyTask{run: func() ([]string, error) {
+			if err := ApplyGlazeWMTheme(opts.Variables); err != nil {
+				return nil, fmt.Errorf("glazewm: %w", err)
+			}
+			return []string{"glazewm"}, nil
+		}})
+	}
+
+	// Phase 7: AI Harness theming (OpenCode, Hermes, Pi, Claude Code, Jan, Aider).
+	harnessEnabled := opts.IncludeOpencode || opts.IncludeHermes || opts.IncludePi || opts.IncludeClaudeCode || opts.IncludeJan || opts.IncludeAider
+	if harnessEnabled {
+		tasks = append(tasks, applyTask{run: func() ([]string, error) {
+			enabled := map[string]bool{
+				"opencode":    opts.IncludeOpencode,
+				"hermes":      opts.IncludeHermes,
+				"pi":          opts.IncludePi,
+				"claude-code": opts.IncludeClaudeCode,
+				"jan":         opts.IncludeJan,
+				"aider":       opts.IncludeAider,
+			}
+			result := ApplyHarnessTheme(opts.Variables, enabled)
+			if len(result.Warnings) > 0 {
+				return result.Applied, errors.New(strings.Join(result.Warnings, "; "))
+			}
+			return result.Applied, nil
 		}})
 	}
 
@@ -231,4 +310,14 @@ func ApplyZed(vars map[string]string, themeDir string, lightMode bool) error {
 		return fmt.Errorf("write Zed settings: %w", err)
 	}
 	return nil
+}
+
+// ApplyBrowserTheme runs the new Phase-6 browser theming package.
+func ApplyBrowserTheme(vars map[string]string) ([]string, []string) {
+	return browsers.ApplyTheme(vars)
+}
+
+// ApplyHarnessTheme runs the Phase-7 AI harness theming package.
+func ApplyHarnessTheme(vars map[string]string, enabled map[string]bool) harnesses.ThemeResult {
+	return harnesses.ApplyTheme(vars, enabled)
 }

@@ -25,6 +25,23 @@ type Options struct {
 	IncludeZed      bool
 	IncludeDiscord  bool
 	IncludeObsidian bool
+	// Phase 4: Windows 11 shell Windhawk styler toggles.
+	IncludeWin11StartMenu     bool
+	IncludeWin11Notifications bool
+	IncludeWin11Taskbar       bool
+	IncludeWin11FileExplorer  bool
+	// Phase 6: Browser theming (Chrome, Edge, Firefox, etc.).
+	IncludeBrowser bool
+	// YASB and GlazeWM bar / window-manager theming (opt-in).
+	IncludeYasb    bool
+	IncludeGlazeWM bool
+	// Phase 7: AI Harness theming (opt-in).
+	IncludeOpencode  bool
+	IncludeHermes    bool
+	IncludePi        bool
+	IncludeClaudeCode bool
+	IncludeJan       bool
+	IncludeAider     bool
 }
 
 // Result reports what was applied and anything that was skipped.

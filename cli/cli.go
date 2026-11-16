@@ -131,6 +131,11 @@ Usage:
   aether --help                             Show this help
   aether --version                          Show version
 
+Headless mode (no GUI):
+  aether --theme <name>                     Apply a saved theme or blueprint by name
+  aether --wallpaper <path>                 Set desktop wallpaper only
+  aether --list                             List available theme names
+
 Theme generation:
   aether --generate <wallpaper> [options]   Extract colors and apply theme
     --light-mode                            Generate light variant

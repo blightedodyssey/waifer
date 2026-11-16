@@ -1,0 +1,577 @@
+package harnesses
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+// --- safeMergeJSON tests ---
+
+func TestSafeMergeJSONCreatesNew(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
+
+	path := filepath.Join(tmpDir, "test.json")
+	err := safeMergeJSON(path, func(data map[string]interface{}) error {
+		data["theme"] = "aether"
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("safeMergeJSON: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatal(err)
+	}
+	if result["theme"] != "aether" {
+		t.Errorf("theme = %v, want aether", result["theme"])
+	}
+}
+
+func TestSafeMergeJSONPreservesOtherKeys(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
+
+	path := filepath.Join(tmpDir, "test.json")
+	existing := map[string]interface{}{
+		"mcpServers": map[string]interface{}{"test": true},
+		"apiKey":     "secret123",
+		"theme":      "default",
+	}
+	existingData, _ := json.Marshal(existing)
+	os.WriteFile(path, existingData, 0o644)
+
+	err := safeMergeJSON(path, func(data map[string]interface{}) error {
+		data["theme"] = "aether"
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("safeMergeJSON: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatal(err)
+	}
+	if result["theme"] != "aether" {
+		t.Errorf("theme = %v, want aether", result["theme"])
+	}
+	// Ensure sensitive keys are preserved
+	if result["apiKey"] != "secret123" {
+		t.Errorf("apiKey was overwritten, got %v", result["apiKey"])
+	}
+	mcpServers, ok := result["mcpServers"].(map[string]interface{})
+	if !ok || mcpServers["test"] != true {
+		t.Error("mcpServers was overwritten or lost")
+	}
+}
+
+func TestSafeMergeJSONAbortsOnMalformed(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "test.json")
+	os.WriteFile(path, []byte("this is not json"), 0o644)
+
+	backupPath := path + ".aether.bak"
+	os.WriteFile(backupPath, []byte("original"), 0o644)
+
+	err := safeMergeJSON(path, func(data map[string]interface{}) error {
+		data["theme"] = "aether"
+		return nil
+	})
+	if err == nil {
+		t.Fatal("expected error for malformed JSON")
+	}
+	if !strings.Contains(err.Error(), "malformed") {
+		t.Errorf("error should mention malformed, got: %v", err)
+	}
+
+	// Ensure original file was NOT modified
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "this is not json" {
+		t.Error("original file was modified despite malformed JSON abort")
+	}
+}
+
+func TestSafeMergeJSONCreatesBackup(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "test.json")
+	os.WriteFile(path, []byte(`{"original": true}`), 0o644)
+
+	err := safeMergeJSON(path, func(data map[string]interface{}) error {
+		data["theme"] = "aether"
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("safeMergeJSON: %v", err)
+	}
+
+	backupPath := path + ".aether.bak"
+	data, err := os.ReadFile(backupPath)
+	if err != nil {
+		t.Fatalf("backup file not created: %v", err)
+	}
+	if !strings.Contains(string(data), `"original": true`) {
+		t.Errorf("backup does not contain original data: %s", string(data))
+	}
+}
+
+// --- OpenCode tests ---
+
+func TestApplyOpenCodeCreatesThemeAndUpdatesConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
+
+	configDir := filepath.Join(tmpDir, ".config", "opencode")
+	os.MkdirAll(configDir, 0o755)
+	cliData := map[string]interface{}{
+		"mcpServers": map[string]interface{}{"github": true},
+		"providers":  []string{"openai"},
+	}
+	cliRaw, _ := json.Marshal(cliData)
+	os.WriteFile(filepath.Join(configDir, "cli.json"), cliRaw, 0o644)
+
+	vars := map[string]string{
+		"background": "#1e1e2e",
+		"foreground": "#cdd6f4",
+		"accent":     "#89b4fa",
+		"cursor":     "#cdd6f4",
+		"base00":     "#1e1e2e",
+		"base0D":     "#89b4fa",
+		"theme_type": "dark",
+	}
+
+	applied, warnings := applyOpenCode(vars)
+	if len(warnings) > 0 {
+		t.Logf("warnings: %v", warnings)
+	}
+	if len(applied) == 0 {
+		t.Fatal("expected at least one opencode target applied")
+	}
+
+	// Verify theme file
+	themePath := filepath.Join(configDir, "themes", "aether.json")
+	data, err := os.ReadFile(themePath)
+	if err != nil {
+		t.Fatalf("theme file not created: %v", err)
+	}
+	var theme map[string]interface{}
+	if err := json.Unmarshal(data, &theme); err != nil {
+		t.Fatal(err)
+	}
+	if theme["name"] != "aether" {
+		t.Errorf("theme name = %v, want aether", theme["name"])
+	}
+
+	// Verify cli.json preserved sensitive keys
+	cliResult, err := os.ReadFile(filepath.Join(configDir, "cli.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cli map[string]interface{}
+	if err := json.Unmarshal(cliResult, &cli); err != nil {
+		t.Fatal(err)
+	}
+	if cli["theme"].(map[string]interface{})["name"] != "aether" {
+		t.Error("theme not updated in cli.json")
+	}
+	if _, ok := cli["mcpServers"]; !ok {
+		t.Error("mcpServers was removed from cli.json")
+	}
+}
+
+func TestApplyOpenCodeSkipsMissing(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
+
+	// No .config/opencode directory
+	vars := map[string]string{"accent": "#89b4fa"}
+	applied, warnings := applyOpenCode(vars)
+	if len(applied) > 0 {
+		t.Error("expected no targets applied when opencode not installed")
+	}
+	if len(warnings) > 0 {
+		t.Logf("warnings: %v", warnings)
+	}
+}
+
+// --- Hermes tests ---
+
+func TestApplyHermesCreatesDashboardAndSkin(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
+
+	hermesDir := filepath.Join(tmpDir, ".hermes")
+	os.MkdirAll(hermesDir, 0o755)
+
+	vars := map[string]string{
+		"background":   "#1e1e2e",
+		"foreground":   "#cdd6f4",
+		"accent":       "#89b4fa",
+		"dark_bg":      "#181825",
+		"bright_black": "#45475a",
+		"base0B":       "#a6e3a1",
+		"base0A":       "#f9e2af",
+		"base08":       "#f38ba8",
+	}
+
+	applied, warnings := applyHermes(vars)
+	if len(warnings) > 0 {
+		t.Logf("warnings: %v", warnings)
+	}
+	if len(applied) != 2 {
+		t.Fatalf("expected 2 targets applied, got %d", len(applied))
+	}
+
+	// Verify dashboard theme
+	dashPath := filepath.Join(hermesDir, "dashboard-themes", "aether.yaml")
+	data, err := os.ReadFile(dashPath)
+	if err != nil {
+		t.Fatalf("dashboard theme not created: %v", err)
+	}
+	if !strings.Contains(string(data), "background: #1e1e2e") {
+		t.Error("dashboard theme missing background color")
+	}
+
+	// Verify skin
+	skinPath := filepath.Join(hermesDir, "skins", "aether.yaml")
+	data, err = os.ReadFile(skinPath)
+	if err != nil {
+		t.Fatalf("skin not created: %v", err)
+	}
+	if !strings.Contains(string(data), "background: #1e1e2e") {
+		t.Error("skin missing background color")
+	}
+}
+
+// --- Pi tests ---
+
+func TestApplyPiCreatesThemeAndUpdatesSettings(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
+
+	piDir := filepath.Join(tmpDir, ".pi", "agent")
+	os.MkdirAll(piDir, 0o755)
+	settings := map[string]interface{}{
+		"model":    "gpt-4",
+		"apiKey":   "secret",
+	}
+	settingsRaw, _ := json.Marshal(settings)
+	os.WriteFile(filepath.Join(piDir, "settings.json"), settingsRaw, 0o644)
+
+	vars := map[string]string{
+		"background": "#1e1e2e",
+		"foreground": "#cdd6f4",
+		"accent":     "#89b4fa",
+		"dark_bg":    "#181825",
+	}
+
+	applied, warnings := applyPi(vars)
+	if len(warnings) > 0 {
+		t.Logf("warnings: %v", warnings)
+	}
+	if len(applied) == 0 {
+		t.Fatal("expected at least one pi target applied")
+	}
+
+	// Verify settings.json preserved keys and added theme
+	data, err := os.ReadFile(filepath.Join(piDir, "settings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatal(err)
+	}
+	if result["theme"] != "aether" {
+		t.Errorf("theme = %v, want aether", result["theme"])
+	}
+	if result["apiKey"] != "secret" {
+		t.Error("apiKey was overwritten")
+	}
+}
+
+// --- Claude Code tests ---
+
+func TestApplyClaudeCodeSetsThemeSafely(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
+
+	configData := map[string]interface{}{
+		"apiKey":     "secret-key",
+		"mcpServers": map[string]interface{}{"filesystem": true},
+	}
+	raw, _ := json.Marshal(configData)
+	os.WriteFile(filepath.Join(tmpDir, ".claude.json"), raw, 0o644)
+
+	vars := map[string]string{"theme_type": "dark"}
+	applied, warnings := applyClaudeCode(vars)
+	if len(warnings) > 0 {
+		t.Logf("warnings: %v", warnings)
+	}
+	if len(applied) != 1 {
+		t.Fatalf("expected 1 target applied, got %d", len(applied))
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, ".claude.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatal(err)
+	}
+	if result["theme"] != "dark-ansi" {
+		t.Errorf("theme = %v, want dark-ansi", result["theme"])
+	}
+	if result["apiKey"] != "secret-key" {
+		t.Error("apiKey was overwritten")
+	}
+}
+
+func TestApplyClaudeCodeSkipsMissing(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
+
+	vars := map[string]string{"theme_type": "dark"}
+	applied, warnings := applyClaudeCode(vars)
+	if len(applied) > 0 {
+		t.Error("expected no targets when claude not installed")
+	}
+	if len(warnings) > 0 {
+		t.Logf("warnings: %v", warnings)
+	}
+}
+
+// --- Jan tests ---
+
+func TestApplyJanCreatesThemeFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
+
+	janDir := filepath.Join(tmpDir, "jan")
+	os.MkdirAll(janDir, 0o755)
+
+	vars := map[string]string{
+		"background": "#1e1e2e",
+		"foreground": "#cdd6f4",
+		"accent":     "#89b4fa",
+		"dark_bg":    "#181825",
+		"base00":     "#1e1e2e",
+		"base0D":     "#89b4fa",
+	}
+
+	applied, warnings := applyJan(vars)
+	if len(warnings) > 0 {
+		t.Logf("warnings: %v", warnings)
+	}
+	if len(applied) != 2 {
+		t.Fatalf("expected 2 targets applied, got %d", len(applied))
+	}
+
+	// Verify JSON theme
+	themePath := filepath.Join(janDir, "themes", "aether.json")
+	data, err := os.ReadFile(themePath)
+	if err != nil {
+		t.Fatalf("theme json not created: %v", err)
+	}
+	var theme map[string]interface{}
+	if err := json.Unmarshal(data, &theme); err != nil {
+		t.Fatal(err)
+	}
+	if theme["name"] != "aether" {
+		t.Errorf("theme name = %v, want aether", theme["name"])
+	}
+
+	// Verify CSS
+	cssPath := filepath.Join(janDir, "themes", "aether-theme.css")
+	cssData, err := os.ReadFile(cssPath)
+	if err != nil {
+		t.Fatalf("theme css not created: %v", err)
+	}
+	if !strings.Contains(string(cssData), "--bg: #1e1e2e") {
+		t.Error("CSS missing --bg variable")
+	}
+}
+
+// --- Aider tests ---
+
+func TestApplyAiderUpdatesColorsPreservesKeys(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
+
+	configContent := `# Aider config
+model: gpt-4
+api_key: secret-key
+# Theme colors
+user-input-color: #ffffff
+some-other-key: value
+`
+	os.WriteFile(filepath.Join(tmpDir, ".aider.conf.yml"), []byte(configContent), 0o644)
+
+	vars := map[string]string{
+		"background":   "#1e1e2e",
+		"foreground":   "#cdd6f4",
+		"accent":       "#89b4fa",
+		"bright_black": "#45475a",
+	}
+
+	applied, warnings := applyAider(vars)
+	if len(warnings) > 0 {
+		t.Logf("warnings: %v", warnings)
+	}
+	if len(applied) != 1 {
+		t.Fatalf("expected 1 target applied, got %d", len(applied))
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, ".aider.conf.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+
+	// Verify color was updated
+	if !strings.Contains(content, "user-input-color: #89b4fa") {
+		t.Error("user-input-color not updated to accent")
+	}
+
+	// Verify existing keys preserved
+	if !strings.Contains(content, "model: gpt-4") {
+		t.Error("model key was removed")
+	}
+	if !strings.Contains(content, "api_key: secret-key") {
+		t.Error("api_key was removed")
+	}
+	if !strings.Contains(content, "some-other-key: value") {
+		t.Error("some-other-key was removed")
+	}
+}
+
+func TestApplyAiderSkipsMissing(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
+
+	vars := map[string]string{"accent": "#89b4fa"}
+	applied, warnings := applyAider(vars)
+	if len(applied) > 0 {
+		t.Error("expected no targets when aider not installed")
+	}
+	if len(warnings) > 0 {
+		t.Logf("warnings: %v", warnings)
+	}
+}
+
+// --- Detect tests ---
+
+func TestDetectFindsInstalledHarnesses(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
+	t.Setenv("APPDATA", tmpDir)
+	t.Setenv("LOCALAPPDATA", tmpDir)
+
+	// Setup opencode
+	os.MkdirAll(filepath.Join(tmpDir, ".config", "opencode"), 0o755)
+	// Setup hermes
+	os.MkdirAll(filepath.Join(tmpDir, ".hermes"), 0o755)
+	// Setup claude (using .claude.json)
+	os.WriteFile(filepath.Join(tmpDir, ".claude.json"), []byte("{}"), 0o644)
+
+	result := Detect()
+	found := make(map[string]bool)
+	for _, h := range result.Harnesses {
+		found[h.Name] = h.HasData
+	}
+
+	if !found["opencode"] {
+		t.Error("opencode not detected")
+	}
+	if !found["hermes"] {
+		t.Error("hermes not detected")
+	}
+	if !found["claude-code"] {
+		t.Error("claude-code not detected")
+	}
+	if found["pi"] {
+		t.Error("pi should not be detected (not installed)")
+	}
+	if found["jan"] {
+		t.Error("jan should not be detected (not installed)")
+	}
+}
+
+// --- ApplyTheme (orchestrator) test ---
+
+func TestApplyThemeOrchestrator(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
+
+	// Install opencode and pi
+	os.MkdirAll(filepath.Join(tmpDir, ".config", "opencode"), 0o755)
+	os.MkdirAll(filepath.Join(tmpDir, ".pi", "agent"), 0o755)
+	os.WriteFile(filepath.Join(tmpDir, ".pi", "agent", "settings.json"), []byte("{}"), 0o644)
+
+	vars := map[string]string{
+		"background": "#1e1e2e",
+		"foreground": "#cdd6f4",
+		"accent":     "#89b4fa",
+		"theme_type": "dark",
+	}
+
+	enabled := map[string]bool{
+		"opencode": true,
+		"pi":       true,
+		"hermes":   false,
+	}
+
+	result := ApplyTheme(vars, enabled)
+	if len(result.Warnings) > 0 {
+		t.Logf("warnings: %v", result.Warnings)
+	}
+
+	// opencode should be applied
+	opencodeFound := false
+	piFound := false
+	for _, a := range result.Applied {
+		if strings.Contains(a, "opencode") {
+			opencodeFound = true
+		}
+		if strings.Contains(a, "pi") {
+			piFound = true
+		}
+	}
+	if !opencodeFound {
+		t.Error("opencode not in applied list")
+	}
+	if !piFound {
+		t.Error("pi not in applied list")
+	}
+}

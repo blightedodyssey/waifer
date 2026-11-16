@@ -14,6 +14,7 @@ import (
 
 	"aether/internal/color"
 	"aether/internal/icontheme"
+	"aether/internal/aetherdir"
 	"aether/internal/omarchy"
 	"aether/internal/platform"
 	"aether/internal/template"
@@ -94,6 +95,28 @@ type Settings struct {
 // includesApp supports explicit opt-in targets while preserving callers that
 // still use the legacy special flags and exclusion map.
 func (s Settings) includesApp(app string) bool {
+	// Windows 11 shell, browser, bar/WM, and AI harness targets default to off
+	// (opt-in) because they modify external application state; only apply if the
+	// user explicitly enabled them.
+	optInTargets := map[string]bool{
+		"win11-start-menu":     true,
+		"win11-notifications":  true,
+		"win11-taskbar":        true,
+		"win11-file-explorer":  true,
+		"browser":              true,
+		"yasb":                 true,
+		"glazewm":              true,
+		"opencode":             true,
+		"hermes":               true,
+		"pi":                   true,
+		"claude-code":          true,
+		"jan":                  true,
+		"aider":                true,
+	}
+	if optInTargets[app] {
+		return s.IncludedApps[app]
+	}
+
 	// Windows Terminal is the primary terminal target on Windows, so it is on
 	// by default there unless the user explicitly turned it off.
 	if app == "system" && runtime.GOOS == "windows" {
@@ -492,16 +515,29 @@ func (w *Writer) ApplyTheme(state *ThemeState, settings Settings) (*ApplyResult,
 	}
 
 	winResult, err := winsys.Apply(winsys.Options{
-		Variables:       variables,
-		LightMode:       state.LightMode,
-		WallpaperPath:   state.WallpaperPath,
-		ThemeDir:        themeDir,
-		IncludeSystem:   settings.includesApp("system"),
-		IncludeTerminal: settings.includesApp("windows-terminal"),
-		IncludeNeovim:   settings.includesApp("neovim"),
-		IncludeZed:      settings.includesApp("zed"),
-		IncludeDiscord:  settings.includesApp("vencord") || settings.includesApp("discord"),
-		IncludeObsidian: settings.includesApp("obsidian"),
+		Variables:                 variables,
+		LightMode:                 state.LightMode,
+		WallpaperPath:             state.WallpaperPath,
+		ThemeDir:                  themeDir,
+		IncludeSystem:             settings.includesApp("system"),
+		IncludeTerminal:           settings.includesApp("windows-terminal"),
+		IncludeNeovim:             settings.includesApp("neovim"),
+		IncludeZed:                settings.includesApp("zed"),
+		IncludeDiscord:            settings.includesApp("vencord") || settings.includesApp("discord"),
+		IncludeObsidian:           settings.includesApp("obsidian"),
+		IncludeWin11StartMenu:     settings.includesApp("win11-start-menu"),
+		IncludeWin11Notifications: settings.includesApp("win11-notifications"),
+		IncludeWin11Taskbar:       settings.includesApp("win11-taskbar"),
+		IncludeWin11FileExplorer:  settings.includesApp("win11-file-explorer"),
+		IncludeBrowser:            settings.includesApp("browser"),
+		IncludeYasb:               settings.includesApp("yasb"),
+		IncludeGlazeWM:            settings.includesApp("glazewm"),
+		IncludeOpencode:           settings.includesApp("opencode"),
+		IncludeHermes:             settings.includesApp("hermes"),
+		IncludePi:                 settings.includesApp("pi"),
+		IncludeClaudeCode:         settings.includesApp("claude-code"),
+		IncludeJan:                settings.includesApp("jan"),
+		IncludeAider:              settings.includesApp("aider"),
 	})
 	if err != nil {
 		log.Printf("[ApplyTheme] windows theme application error: %v", err)
@@ -516,12 +552,63 @@ func (w *Writer) ApplyTheme(state *ThemeState, settings Settings) (*ApplyResult,
 	for _, warning := range winResult.Warnings {
 		log.Printf("[ApplyTheme] windows theme application warning: %s", warning)
 	}
+
+	// Phase 5: Write canonical current theme state, render user templates, run hook.
+	if err := writeAetherCurrentState(variables, state.WallpaperPath); err != nil {
+		log.Printf("[ApplyTheme] aether current state error: %v", err)
+		winResult.Warnings = append(winResult.Warnings, err.Error())
+	}
+
 	return &ApplyResult{
 		Success:   true,
 		ThemePath: themeDir,
 		Applied:   winResult.Applied,
 		Warnings:  winResult.Warnings,
 	}, nil
+}
+
+// writeAetherCurrentState populates %LOCALAPPDATA%\Aether\current\ with the
+// canonical theme snapshot: colors.toml, theme.md, wallpaper, and renders any
+// user drop-in templates from %LOCALAPPDATA%\Aether\templates\.  Finally it
+// runs the post-apply hook if one exists.
+func writeAetherCurrentState(vars map[string]string, wallpaperPath string) error {
+	if err := aetherdir.Ensure(); err != nil {
+		return err
+	}
+
+	// Write canonical colors.toml and theme.md
+	if err := aetherdir.WriteColorsToml(vars); err != nil {
+		return fmt.Errorf("write colors.toml: %w", err)
+	}
+	if err := aetherdir.WriteThemeMeta(vars, ""); err != nil {
+		return fmt.Errorf("write theme.md: %w", err)
+	}
+	if err := aetherdir.WriteWallpaper(wallpaperPath); err != nil {
+		return fmt.Errorf("write wallpaper: %w", err)
+	}
+
+	// Seed starter templates if templates dir is empty
+	if err := aetherdir.SeedStarterTemplates(); err != nil {
+		log.Printf("[ApplyTheme] seed starter templates warning: %v", err)
+	}
+
+	// Render user drop-in templates
+	templates, err := aetherdir.ParseUserTemplates(vars)
+	if err != nil {
+		return fmt.Errorf("parse user templates: %w", err)
+	}
+	if errs := aetherdir.RenderAll(templates); len(errs) > 0 {
+		for _, e := range errs {
+			log.Printf("[ApplyTheme] user template error: %v", e)
+		}
+	}
+
+	// Run post-apply hook (background, CREATE_NO_WINDOW, 10s timeout)
+	if err := aetherdir.RunHook(); err != nil {
+		log.Printf("[ApplyTheme] hook warning: %v", err)
+	}
+
+	return nil
 }
 
 // GenerateOnly generates theme files to the specified output path without

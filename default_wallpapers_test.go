@@ -84,7 +84,9 @@ func TestInstallDefaultWallpapersSkipsMissingConfiguredFolder(t *testing.T) {
 	t.Setenv("APPDATA", t.TempDir())
 	t.Setenv("LOCALAPPDATA", t.TempDir())
 
-	missing := filepath.Join(home, "custom-drive", "missing")
+	// Use a path entirely outside TempDir so the self-heal leak-detector
+	// never matches it.
+	missing := "C:\\__aether_test_missing_folder__\\wallpapers"
 	if err := NewApp().SaveSettings(map[string]interface{}{
 		wallpaperFolderSetting: missing,
 	}); err != nil {

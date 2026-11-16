@@ -87,24 +87,36 @@ func applyTerminalSettingsFile(settingsPath string, scheme map[string]any) error
 
 	upsertScheme(root, scheme)
 
-	switch profiles := root["profiles"].(type) {
-	case map[string]any:
-		defaults, ok := profiles["defaults"].(map[string]any)
-		if !ok {
-			defaults = map[string]any{}
-			profiles["defaults"] = defaults
-		}
-		defaults["colorScheme"] = terminalSchemeName
-	case []any:
-		// Very old Windows Terminal schemas store profiles as an array.
-		for _, entry := range profiles {
-			if profile, ok := entry.(map[string]any); ok {
-				profile["colorScheme"] = terminalSchemeName
-			}
-		}
-	default:
-		root["profiles"] = map[string]any{
-			"defaults": map[string]any{"colorScheme": terminalSchemeName},
+	// Safely update profiles.defaults.colorScheme without clobbering any
+	// existing profiles key (list, defaults, etc.). If the profiles key is
+	// missing, nil, or an unexpected type, abort safely instead of writing a
+	// broken file.
+	profiles, ok := root["profiles"].(map[string]any)
+	if !ok {
+		// profiles is nil, null, or an unexpected type (e.g. old array
+		// format). Return a non-fatal warning and leave the file untouched.
+		return fmt.Errorf("Windows Terminal profiles key is missing or unexpected type; file left unchanged")
+	}
+
+	defaults, ok := profiles["defaults"].(map[string]any)
+	if !ok {
+		defaults = map[string]any{}
+		profiles["defaults"] = defaults
+	}
+	defaults["colorScheme"] = terminalSchemeName
+
+	// Verify that profiles.list is present and non-empty to prevent corrupting
+	// the settings file with "All profiles were hidden" errors.
+	list, _ := profiles["list"].([]any)
+	if len(list) == 0 {
+		return fmt.Errorf("Windows Terminal profiles.list is empty or missing; file left unchanged")
+	}
+
+	// Create backup on first run (idempotent).
+	backup := settingsPath + ".aether-backup"
+	if _, err := os.Stat(backup); os.IsNotExist(err) {
+		if err := copyFile(settingsPath, backup); err != nil {
+			return fmt.Errorf("back up Windows Terminal settings: %w", err)
 		}
 	}
 
@@ -114,12 +126,6 @@ func applyTerminalSettingsFile(settingsPath string, scheme map[string]any) error
 	}
 	encoded = append(encoded, '\n')
 
-	backup := settingsPath + ".aether-backup"
-	if _, err := os.Stat(backup); os.IsNotExist(err) {
-		if err := copyFile(settingsPath, backup); err != nil {
-			return fmt.Errorf("back up Windows Terminal settings: %w", err)
-		}
-	}
 	if err := writeFileAtomic(settingsPath, encoded); err != nil {
 		return fmt.Errorf("write Windows Terminal settings: %w", err)
 	}

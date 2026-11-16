@@ -649,10 +649,30 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class AetherDirStatus {
+	    currentThemePath: string;
+	    hasCurrentTheme: boolean;
+	    templateCount: number;
+	    hasHookScript: boolean;
+	    templatesDir: string;
+	    hooksDir: string;
+
+	    static createFrom(source: any = {}) {
+	        return new AetherDirStatus(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.currentThemePath = source["currentThemePath"];
+	        this.hasCurrentTheme = source["hasCurrentTheme"];
+	        this.templateCount = source["templateCount"];
+	        this.hasHookScript = source["hasHookScript"];
+	        this.templatesDir = source["templatesDir"];
+	        this.hooksDir = source["hooksDir"];
+	    }
+	}
 
 }
-
-export namespace omarchy {
 	
 	export class Capabilities {
 	    available: boolean;

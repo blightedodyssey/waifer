@@ -9,17 +9,19 @@ import (
 
 // Registry value types used by the theme transaction.
 const (
-	registrySZ    uint32 = 1
-	registryDWORD uint32 = 4
+	registrySZ     uint32 = 1
+	registryBINARY uint32 = 3
+	registryDWORD  uint32 = 4
 )
 
 const (
-	dwmKey             = `Software\Microsoft\Windows\DWM`
-	explorerAccentKey  = `Software\Microsoft\Windows\CurrentVersion\Explorer\Accent`
-	personalizeKey     = `Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`
-	chromePolicyKey    = `Software\Policies\Google\Chrome`
-	chromiumPolicyKey  = `Software\Policies\Chromium`
-	colorPrevalenceKey = "ColorPrevalence"
+	dwmKey                  = `Software\Microsoft\Windows\DWM`
+	explorerAccentKey       = `Software\Microsoft\Windows\CurrentVersion\Explorer\Accent`
+	personalizeKey          = `Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`
+	chromePolicyKey         = `Software\Policies\Google\Chrome`
+	chromiumPolicyKey       = `Software\Policies\Chromium`
+	controlPanelColorsKey   = `Control Panel\Colors`
+	colorPrevalenceKey      = "ColorPrevalence"
 )
 
 // registryValue is a single value in the atomic theme transaction. Keeping the
@@ -146,8 +148,8 @@ func accentThemeValues(vars map[string]string) ([]registryValue, error) {
 
 // systemThemeValues returns every Windows shell value for a theme. The
 // returned slice is written in one registry transaction: personalization,
-// accent/title-bar colors, and Chrome's accent policy all commit together (or
-// not at all).
+// accent/title-bar colors, Control Panel color scheme, Explorer AccentPalette,
+// and Chrome's accent policy all commit together (or not at all).
 func systemThemeValues(vars map[string]string, lightMode bool) ([]registryValue, error) {
 	appsLight := uint32(1)
 	systemLight := uint32(1)
@@ -163,6 +165,12 @@ func systemThemeValues(vars map[string]string, lightMode bool) ([]registryValue,
 		dwordValue(personalizeKey, "EnableTransparency", 1),
 	}
 
+	// Control Panel\Colors: selection highlight, hot-tracking, and window
+	// chrome colors so File Explorer focus rings and selection colors match
+	// the active palette.
+	cPanel := buildControlPanelColors(vars, lightMode)
+	values = append(values, cPanel...)
+
 	accentValues, err := accentThemeValues(vars)
 	if err != nil {
 		if strings.TrimSpace(vars["accent"]) != "" {
@@ -172,8 +180,116 @@ func systemThemeValues(vars map[string]string, lightMode bool) ([]registryValue,
 		values = append(values, accentValues...)
 	}
 
+	// Explorer AccentPalette — 32-byte RGBA gradient used by native Win11 shell.
+	accentPalette := buildAccentPalette(vars)
+	if len(accentPalette) > 0 {
+		values = append(values, registryValue{
+			Path:   explorerAccentKey,
+			Name:   "AccentPalette",
+			Type:   registryBINARY,
+			String: string(accentPalette),
+		})
+	}
+
 	values = append(values, chromeThemeValues(vars)...)
 	return values, nil
+}
+
+// buildControlPanelColors builds the legacy Control Panel\Colors keys. Windows
+// converts these to the current RGB string format: "R G B" (space-separated
+// decimal bytes).
+func buildControlPanelColors(vars map[string]string, lightMode bool) []registryValue {
+	accent := normalizeHex(vars["accent"])
+	bg := normalizeHex(vars["background"])
+	fg := normalizeHex(vars["foreground"])
+	if bg == "" {
+		bg = "#1e1e2e"
+	}
+	if fg == "" {
+		if lightMode {
+			fg = "#000000"
+		} else {
+			fg = "#cdd6f4"
+		}
+	}
+	if accent == "" {
+		accent = "#cba6f7"
+	}
+
+	values := []registryValue{
+		stringValue(controlPanelColorsKey, "Hilight", hexToRGBSpace(accent)),
+		stringValue(controlPanelColorsKey, "HotTrackingColor", hexToRGBSpace(accent)),
+		stringValue(controlPanelColorsKey, "MenuHilight", hexToRGBSpace(accent)),
+		stringValue(controlPanelColorsKey, "Window", hexToRGBSpace(bg)),
+		stringValue(controlPanelColorsKey, "WindowText", hexToRGBSpace(fg)),
+	}
+
+	if lightMode {
+		values = append(values,
+			stringValue(controlPanelColorsKey, "Background", "255 255 255"),
+			stringValue(controlPanelColorsKey, "Menu", "255 255 255"),
+			stringValue(controlPanelColorsKey, "MenuText", "0 0 0"),
+		)
+	} else {
+		values = append(values,
+			stringValue(controlPanelColorsKey, "Background", hexToRGBSpace(bg)),
+			stringValue(controlPanelColorsKey, "Menu", hexToRGBSpace(bg)),
+			stringValue(controlPanelColorsKey, "MenuText", hexToRGBSpace(fg)),
+		)
+	}
+	return values
+}
+
+// hexToRGBSpace turns "#rrggbb" into "R G B" with decimal components.
+func hexToRGBSpace(hex string) string {
+	r, g, b, err := parseHexColor(hex)
+	if err != nil {
+		return "0 0 0"
+	}
+	return fmt.Sprintf("%d %d %d", r, g, b)
+}
+
+// buildAccentPalette creates the 32-byte RGBA gradient that Windows 11 Explorer
+// uses for native shell accent coloring (Start button glow, taskbar peek,
+// notification bubbles, etc.).  The palette has 8 slots (4 bytes each:
+// B G R A).  Slots 0–2 are light tints, slot 3 is the primary accent,
+// slots 4–7 are progressively darker shades.
+func buildAccentPalette(vars map[string]string) []byte {
+	accent := normalizeHex(vars["accent"])
+	if accent == "" {
+		return nil
+	}
+	r, g, b, err := parseHexColor(accent)
+	if err != nil {
+		return nil
+	}
+
+	// Build 8 RGBA entries: B G R A
+	palette := make([]byte, 0, 32)
+	alpha := byte(0xFF)
+
+	// Slot 0 — lightest tint (80% white mix)
+	palette = append(palette, mix(b, 255, 0.80), mix(g, 255, 0.80), mix(r, 255, 0.80), alpha)
+	// Slot 1 — lighter tint (50% white mix)
+	palette = append(palette, mix(b, 255, 0.50), mix(g, 255, 0.50), mix(r, 255, 0.50), alpha)
+	// Slot 2 — light tint (25% white mix)
+	palette = append(palette, mix(b, 255, 0.25), mix(g, 255, 0.25), mix(r, 255, 0.25), alpha)
+	// Slot 3 — primary accent (original color)
+	palette = append(palette, b, g, r, alpha)
+	// Slot 4 — dark shade (15% black mix)
+	palette = append(palette, mix(b, 0, 0.15), mix(g, 0, 0.15), mix(r, 0, 0.15), alpha)
+	// Slot 5 — darker shade (30% black mix)
+	palette = append(palette, mix(b, 0, 0.30), mix(g, 0, 0.30), mix(r, 0, 0.30), alpha)
+	// Slot 6 — even darker (45% black mix)
+	palette = append(palette, mix(b, 0, 0.45), mix(g, 0, 0.45), mix(r, 0, 0.45), alpha)
+	// Slot 7 — darkest (60% black mix)
+	palette = append(palette, mix(b, 0, 0.60), mix(g, 0, 0.60), mix(r, 0, 0.60), alpha)
+
+	return palette
+}
+
+func mix(a, b uint8, weight float64) byte {
+	return byte(math.Round(float64(a)*(1-weight) + float64(b)*weight))
 }
 
 // chromeThemeValues configures Chrome's policy-backed theme color. Chrome reads

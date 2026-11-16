@@ -42,9 +42,22 @@ const APP_LABELS: Record<string, string> = {
     warp: 'Warp',
     waybar: 'Waybar',
     'windows-terminal': 'Windows Terminal',
+    yasb: 'YASB',
+    glazewm: 'GlazeWM',
     system: 'Windows System Theme',
     wofi: 'Wofi',
     zellij: 'Zellij',
+    'win11-start-menu': 'Start Menu',
+    'win11-notifications': 'Notifications',
+    'win11-taskbar': 'Taskbar',
+    'win11-file-explorer': 'File Explorer',
+    browser: 'Browser',
+    opencode: 'OpenCode',
+    hermes: 'Hermes',
+    pi: 'Pi',
+    'claude-code': 'Claude Code',
+    jan: 'Jan',
+    aider: 'Aider',
 };
 
 export function appLabel(key: string): string {

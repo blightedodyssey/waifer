@@ -26,6 +26,12 @@ func main() {
 	// GUI flags that need the full Wails runtime (not CLI-only)
 	guiFlags := map[string]bool{"--tab": true}
 
+	// Headless mode: --theme, --wallpaper, --list run without GUI
+	headlessFlags := map[string]bool{"--theme": true, "--wallpaper": true, "--list": true}
+	if len(os.Args) > 1 && headlessFlags[os.Args[1]] {
+		os.Exit(cli.RunHeadless(os.Args[1:], EmbeddedTemplates))
+	}
+
 	// CLI mode: if first arg starts with -- and isn't a GUI flag, dispatch to CLI
 	if len(os.Args) > 1 && strings.HasPrefix(os.Args[1], "--") && !guiFlags[os.Args[1]] {
 		os.Exit(cli.Run(os.Args[1:], EmbeddedTemplates))
@@ -77,7 +83,7 @@ func main() {
 		Title:       "Aether",
 		Width:       900,
 		Height:      700,
-		StartHidden: true,
+		StartHidden: false,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},

@@ -145,6 +145,12 @@ func setValueTransacted(key windows.Handle, value registryValue) error {
 		}
 		data = unsafe.Pointer(&encoded[0])
 		size = uint32(len(encoded) * 2)
+	case registryBINARY:
+		ba := []byte(value.String)
+		if len(ba) > 0 {
+			data = unsafe.Pointer(&ba[0])
+		}
+		size = uint32(len(ba))
 	default:
 		return fmt.Errorf("unsupported registry type %d for %s\\%s", value.Type, value.Path, value.Name)
 	}
@@ -184,6 +190,8 @@ func writeRegistryDirect(values []registryValue) error {
 			err = key.SetDWordValue(value.Name, value.DWord)
 		case registrySZ:
 			err = key.SetStringValue(value.Name, value.String)
+		case registryBINARY:
+			err = key.SetBinaryValue(value.Name, []byte(value.String))
 		default:
 			err = fmt.Errorf("unsupported registry type %d", value.Type)
 		}

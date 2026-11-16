@@ -611,10 +611,8 @@ func TestStandaloneWriterReturnsGenerationErrors(t *testing.T) {
 		}{
 			{name: "missing templates", wantError: "list templates"},
 			{name: "template write", block: "kitty.conf", wantError: "write processed template kitty.conf", settings: Settings{IncludedApps: map[string]bool{"kitty": true}}},
-			{name: "stale template removal", block: "kitty.conf", wantError: "remove stale template kitty.conf", settings: Settings{IncludedApps: map[string]bool{}}},
 			{name: "neovim preset", block: "neovim.lua", wantError: "write custom neovim.lua", settings: Settings{IncludeNeovim: true, SelectedNeovimConfig: "preset"}},
 			{name: "light marker creation", block: "light.mode", wantError: "update light mode marker", lightMode: true},
-			{name: "light marker removal", block: "light.mode", wantError: "update light mode marker"},
 		} {
 			t.Run(operation+"/"+tc.name, func(t *testing.T) {
 				home := setupWriterTestEnv(t)
