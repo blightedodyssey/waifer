@@ -1,0 +1,23 @@
+{
+    "name": "Aether",
+    "background": "{background}",
+    "foreground": "{foreground}",
+    "cursorColor": "{cursor}",
+    "selectionBackground": "{selection_background}",
+    "black": "{black}",
+    "red": "{red}",
+    "green": "{green}",
+    "yellow": "{yellow}",
+    "blue": "{blue}",
+    "purple": "{magenta}",
+    "cyan": "{cyan}",
+    "white": "{white}",
+    "brightBlack": "{bright_black}",
+    "brightRed": "{bright_red}",
+    "brightGreen": "{bright_green}",
+    "brightYellow": "{bright_yellow}",
+    "brightBlue": "{bright_blue}",
+    "brightPurple": "{bright_magenta}",
+    "brightCyan": "{bright_cyan}",
+    "brightWhite": "{bright_white}"
+}
