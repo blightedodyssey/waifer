@@ -424,6 +424,12 @@ func setupWriterTestEnv(t *testing.T) string {
 	}
 	t.Setenv("OMARCHY_THEME_SKIP_BACKGROUND", "")
 	t.Setenv("AETHER_EXTRA_THEME_DIRS", "")
+	// Windows: must also isolate APPDATA so ConfigDir() doesn't resolve to real
+	// %APPDATA%\aether when XDG_CONFIG_HOME is unset or bypassed.
+	if runtime.GOOS == "windows" {
+		t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+		t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
+	}
 	return home
 }
 

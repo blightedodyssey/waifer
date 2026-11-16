@@ -359,6 +359,12 @@ func setupCustomAppsTest(t *testing.T) (customDir, themeDir, hookLog string) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	// Windows: must also isolate APPDATA so ConfigDir() doesn't resolve to real
+	// %APPDATA%\aether when XDG_CONFIG_HOME is unset or bypassed.
+	if runtime.GOOS == "windows" {
+		t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+		t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
+	}
 	binDir := t.TempDir()
 	hookLog = filepath.Join(home, "hooks.log")
 	t.Setenv("AETHER_TEST_HOOK_LOG", hookLog)
