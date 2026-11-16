@@ -226,7 +226,7 @@ func CreateSymlink(target, link string) error {
 
 // DeleteFile removes the file at path. Returns nil if the file does not exist.
 func DeleteFile(path string) error {
-	err := os.Remove(path)
+	err := os.RemoveAll(path)
 	if os.IsNotExist(err) {
 		return nil
 	}

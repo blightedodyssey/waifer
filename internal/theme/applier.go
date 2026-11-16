@@ -37,7 +37,7 @@ func HandleLightModeMarker(themeDir string, lightMode bool) error {
 	}
 
 	// Remove light.mode file if it exists
-	err := os.Remove(markerPath)
+	err := os.RemoveAll(markerPath)
 	if os.IsNotExist(err) {
 		return nil
 	}

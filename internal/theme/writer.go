@@ -774,7 +774,7 @@ func replaceThemeDir(staging, target string, activate func() error) error {
 		if err != nil {
 			return fmt.Errorf("reserve Omarchy theme backup: %w", err)
 		}
-		if err := os.Remove(backup); err != nil {
+		if err := os.RemoveAll(backup); err != nil {
 			return fmt.Errorf("prepare Omarchy theme backup: %w", err)
 		}
 		if err := os.Rename(target, backup); err != nil {

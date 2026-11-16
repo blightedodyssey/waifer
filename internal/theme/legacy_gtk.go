@@ -77,7 +77,7 @@ func retireLegacyGTKRegularFile(path, backupPath string, restoreBackup bool) (bo
 		if err := verifyLegacyGTKPath(path, false); err != nil {
 			return false, err
 		}
-		if err := os.Remove(path); err != nil {
+		if err := os.RemoveAll(path); err != nil {
 			return false, err
 		}
 		return true, nil
@@ -113,7 +113,7 @@ func retireLegacyGTKSymlink(path, backupPath string, restoreBackup bool) (bool, 
 		if err := verifyLegacyGTKSymlink(path, targetPath, linkTarget); err != nil {
 			return false, err
 		}
-		if err := os.Remove(path); err != nil {
+		if err := os.RemoveAll(path); err != nil {
 			return false, err
 		}
 		return true, nil
@@ -145,7 +145,7 @@ func removeLegacyGTKStylesheet(path string) error {
 	if err := verifyLegacyGTKPath(path, false); err != nil {
 		return err
 	}
-	return os.Remove(path)
+	return os.RemoveAll(path)
 }
 
 func inspectLegacyGTKStylesheet(path string, followSymlink bool) (regular, owned bool, err error) {
