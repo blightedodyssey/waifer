@@ -22,7 +22,7 @@ type applyTask struct {
 func Apply(opts Options) (Result, error) {
 	tasks := make([]applyTask, 0, 6)
 
-	if opts.WallpaperPath != "" {
+	if opts.IncludeSystem && opts.WallpaperPath != "" {
 		tasks = append(tasks, applyTask{run: func() ([]string, error) {
 			if err := SetWallpaper(opts.WallpaperPath); err != nil {
 				return nil, fmt.Errorf("desktop wallpaper: %w", err)
@@ -31,12 +31,14 @@ func Apply(opts Options) (Result, error) {
 		}})
 	}
 
-	tasks = append(tasks, applyTask{run: func() ([]string, error) {
-		if errs := applySystemColors(opts.Variables, opts.LightMode); len(errs) > 0 {
-			return nil, errors.Join(errs...)
-		}
-		return []string{"accent-color", "light-dark-mode", "chrome-accent"}, nil
-	}})
+	if opts.IncludeSystem {
+		tasks = append(tasks, applyTask{run: func() ([]string, error) {
+			if errs := applySystemColors(opts.Variables, opts.LightMode); len(errs) > 0 {
+				return nil, errors.Join(errs...)
+			}
+			return []string{"accent-color", "light-dark-mode", "chrome-accent"}, nil
+		}})
+	}
 
 	// Firefox is optional: no profile simply means Firefox is not installed or
 	// has never been launched, which is not a theme-application failure.

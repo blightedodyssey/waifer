@@ -82,6 +82,7 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 30, G: 30, B: 46, A: 1},
+		Frameless:        true,
 		OnStartup:        app.startup,
 		// EnableFileDrop delivers absolute paths for files dropped on the
 		// window. Do not set DisableWebViewDrop on Linux: Wails needs the

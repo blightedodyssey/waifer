@@ -96,6 +96,12 @@ type Settings struct {
 func (s Settings) includesApp(app string) bool {
 	// Windows Terminal is the primary terminal target on Windows, so it is on
 	// by default there unless the user explicitly turned it off.
+	if app == "system" && runtime.GOOS == "windows" {
+		if enabled, ok := s.IncludedApps[app]; ok {
+			return enabled
+		}
+		return true
+	}
 	if app == "windows-terminal" && runtime.GOOS == "windows" {
 		if enabled, ok := s.IncludedApps[app]; ok {
 			return enabled
@@ -490,6 +496,7 @@ func (w *Writer) ApplyTheme(state *ThemeState, settings Settings) (*ApplyResult,
 		LightMode:       state.LightMode,
 		WallpaperPath:   state.WallpaperPath,
 		ThemeDir:        themeDir,
+		IncludeSystem:   settings.includesApp("system"),
 		IncludeTerminal: settings.includesApp("windows-terminal"),
 		IncludeNeovim:   settings.includesApp("neovim"),
 		IncludeZed:      settings.includesApp("zed"),

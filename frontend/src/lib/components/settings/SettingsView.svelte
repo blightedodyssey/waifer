@@ -1,6 +1,15 @@
 <script lang="ts">
-    import {getSettings, updateSettings} from '$lib/stores/settings.svelte';
+    import {getSettings, updateSettings, isAppIncluded, setAppIncluded} from '$lib/stores/settings.svelte';
     import {showToast} from '$lib/stores/ui.svelte';
+    import Switch from '$lib/components/shared/Switch.svelte';
+
+    const appTargets = [
+        {key: 'system', label: 'Windows System Theme'},
+        {key: 'windows-terminal', label: 'Windows Terminal'},
+        {key: 'vscode', label: 'VS Code / Cursor'},
+        {key: 'vencord', label: 'Discord / Vencord'},
+        {key: 'obsidian', label: 'Obsidian'},
+    ];
 
     let choosingFolder = $state(false);
     let wallpaperFolder = $derived(
@@ -99,6 +108,34 @@
                 >
                     {choosingFolder ? 'Choosing…' : 'Choose folder…'}
                 </button>
+            </div>
+        </section>
+
+        <section aria-labelledby="app-targets-heading" class="mt-9">
+            <h2
+                id="app-targets-heading"
+                class="text-fg-dimmed mb-2.5 text-[10px] font-semibold uppercase tracking-[0.14em]"
+            >
+                App targets
+            </h2>
+            <p class="text-fg-secondary mb-4 text-[12px]">
+                Choose which apps Aether updates when you apply a theme.
+            </p>
+            <div class="grid gap-2">
+                {#each appTargets as target}
+                    <div
+                        class="border-border bg-bg-secondary flex items-center justify-between border p-3"
+                    >
+                        <span class="text-fg-primary text-[13px] font-medium">
+                            {target.label}
+                        </span>
+                        <Switch
+                            checked={isAppIncluded(target.key)}
+                            onchange={v => setAppIncluded(target.key, v)}
+                            label={target.label}
+                        />
+                    </div>
+                {/each}
             </div>
         </section>
     </div>

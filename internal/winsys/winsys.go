@@ -18,7 +18,8 @@ type Options struct {
 	// ThemeDir is where Aether rendered the per-app files for this apply.
 	ThemeDir string
 	// Toggle targets. System theming (wallpaper + accent + light/dark mode)
-	// is always applied; the rest follow the user's app selections.
+	// follows IncludeSystem; the rest follow the user's app selections.
+	IncludeSystem   bool
 	IncludeTerminal bool
 	IncludeNeovim   bool
 	IncludeZed      bool

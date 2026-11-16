@@ -120,17 +120,17 @@
     </button>
     <div class="bg-border my-3 mr-1 w-px shrink-0" aria-hidden="true"></div>
     <nav
-        class="flex min-w-0 items-stretch overflow-x-auto"
+        class="bg-bg-surface border-border flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-full border p-0.5"
         aria-label="Main navigation"
         style="--wails-draggable:no-drag"
     >
         {#each visibleTabs as tab}
             <button
                 type="button"
-                class="flex shrink-0 items-center gap-[7px] px-3 text-[12px] font-medium transition-colors duration-100
+                class="flex shrink-0 items-center gap-[7px] rounded-full px-3 py-1 text-[12px] font-medium transition-colors duration-100
                     {activeTab === tab.id
-                    ? 'text-fg-primary shadow-[inset_0_-2px_0_var(--color-accent)]'
-                    : 'text-fg-dimmed hover:text-fg-primary'}"
+                    ? 'bg-accent text-accent-fg'
+                    : 'text-fg-dimmed hover:text-fg-primary hover:bg-bg-hover'}"
                 onclick={() => setActiveTab(tab.id)}
                 aria-current={activeTab === tab.id ? 'page' : undefined}
             >
@@ -226,4 +226,82 @@
             keymapIcon
         )}
     </div>
+
+    {#if !isMac}
+        <div
+            class="ml-1 flex items-center gap-0.5"
+            style="--wails-draggable:no-drag"
+        >
+            <button
+                type="button"
+                class="text-fg-dimmed hover:bg-bg-hover hover:text-fg-primary flex h-7 w-9 items-center justify-center transition-colors"
+                aria-label="Minimize"
+                title="Minimize"
+                onclick={async () => {
+                    const {WindowMinimise} = await import(
+                        '../../../../wailsjs/runtime/runtime'
+                    );
+                    WindowMinimise();
+                }}
+            >
+                <svg
+                    class="h-3 w-3"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    aria-hidden="true"
+                >
+                    <line x1="1" y1="6" x2="11" y2="6" />
+                </svg>
+            </button>
+            <button
+                type="button"
+                class="text-fg-dimmed hover:bg-bg-hover hover:text-fg-primary flex h-7 w-9 items-center justify-center transition-colors"
+                aria-label="Maximize"
+                title="Maximize"
+                onclick={async () => {
+                    const {WindowToggleMaximise} = await import(
+                        '../../../../wailsjs/runtime/runtime'
+                    );
+                    WindowToggleMaximise();
+                }}
+            >
+                <svg
+                    class="h-3 w-3"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    aria-hidden="true"
+                >
+                    <rect x="1.5" y="1.5" width="9" height="9" />
+                </svg>
+            </button>
+            <button
+                type="button"
+                class="text-fg-dimmed hover:bg-destructive hover:text-white flex h-7 w-9 items-center justify-center transition-colors"
+                aria-label="Close"
+                title="Close"
+                onclick={async () => {
+                    const {Quit} = await import(
+                        '../../../../wailsjs/runtime/runtime'
+                    );
+                    Quit();
+                }}
+            >
+                <svg
+                    class="h-3 w-3"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    aria-hidden="true"
+                >
+                    <line x1="2" y1="2" x2="10" y2="10" />
+                    <line x1="10" y1="2" x2="2" y2="10" />
+                </svg>
+            </button>
+        </div>
+    {/if}
 </header>

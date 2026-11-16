@@ -42,6 +42,7 @@ const APP_LABELS: Record<string, string> = {
     warp: 'Warp',
     waybar: 'Waybar',
     'windows-terminal': 'Windows Terminal',
+    system: 'Windows System Theme',
     wofi: 'Wofi',
     zellij: 'Zellij',
 };

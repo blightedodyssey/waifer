@@ -12,6 +12,7 @@
         getWallpaperBlur,
         setWallpaperBlur,
         getWallpaperRevision,
+        getAdjustments,
     } from '$lib/stores/theme.svelte';
     import {extractColors} from '$lib/actions/themeActions';
     import {
@@ -52,6 +53,17 @@
     );
     let loading = $derived(isPending(displayPath));
     let blurred = $derived(getWallpaperBlur());
+    let previewFilter = $derived.by(() => {
+        const a = getAdjustments();
+        const parts: string[] = [];
+        parts.push(`brightness(${1 + (a.brightness ?? 0) / 100})`);
+        parts.push(`contrast(${1 + (a.contrast ?? 0) / 100})`);
+        parts.push(`saturate(${1 + (a.saturation ?? 0) / 100})`);
+        parts.push(`hue-rotate(${a.hueShift ?? 0}deg)`);
+        if (a.temperature) parts.push(`sepia(${Math.abs(a.temperature) / 100})`);
+        if (a.gamma && a.gamma !== 1) parts.push(`brightness(${a.gamma})`);
+        return parts.join(' ');
+    });
     let isBlurring = $state(false);
     let previewOpen = $state(false);
     let eyedropperActive = $derived(getEyedropperActive());
@@ -359,6 +371,7 @@
                 src={wallpaperImage}
                 alt="Current wallpaper"
                 class="block h-full w-full {objectFit}"
+                style:filter={previewFilter}
                 onload={() =>
                     (naturalSize = imgEl
                         ? `${imgEl.naturalWidth} × ${imgEl.naturalHeight}`
