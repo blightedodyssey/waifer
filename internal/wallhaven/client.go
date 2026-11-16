@@ -204,6 +204,41 @@ func (c *Client) DownloadThumb(thumbURL string) (string, error) {
 	return c.download(thumbURL, destDir, maxThumbnailBytes)
 }
 
+// DownloadToWallpapers downloads the full-resolution image for a wallhaven
+// wallpaper into the user's wallpaper folder (~/Pictures/Wallpapers on
+// Windows, created automatically) as wallhaven-<id>.<ext> and returns the
+// local path. Existing files are reused, so repeat Use clicks skip the HTTP
+// round-trip. The extension is taken from the image URL; when it is missing
+// or not a safe alphanumeric suffix the wallhaven default ".jpg" is used.
+func (c *Client) DownloadToWallpapers(id, imageURL string) (string, error) {
+	if !wallhavenIDPattern.MatchString(id) {
+		return "", fmt.Errorf("invalid wallhaven wallpaper id %q", id)
+	}
+	if err := wallpaper.ValidateRemoteURL(imageURL); err != nil {
+		return "", fmt.Errorf("wallhaven %s: %w", id, err)
+	}
+	u, _ := url.Parse(imageURL)
+	ext := strings.ToLower(path.Ext(u.Path))
+	if len(ext) < 2 || len(ext) > 8 {
+		ext = ".jpg"
+	} else {
+		for i := 1; i < len(ext); i++ {
+			if ch := ext[i]; (ch < 'a' || ch > 'z') && (ch < '0' || ch > '9') {
+				ext = ".jpg"
+				break
+			}
+		}
+	}
+	destDir := platform.WallpaperDir()
+	destPath := filepath.Join(destDir, "wallhaven-"+id+ext)
+	client := *c.http
+	client.Timeout = 5 * time.Minute
+	if err := wallpaper.DownloadFileContext(context.Background(), &client, imageURL, destPath, wallpaper.MaxImageBytes); err != nil {
+		return "", fmt.Errorf("download wallhaven %s to %s: %w", id, destDir, err)
+	}
+	return destPath, nil
+}
+
 // Info fetches metadata for a single wallpaper by its wallhaven ID.
 func (c *Client) Info(id string) (*WallpaperInfo, error) {
 	if !wallhavenIDPattern.MatchString(id) {

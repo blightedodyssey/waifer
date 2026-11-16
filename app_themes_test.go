@@ -6,6 +6,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -17,6 +18,9 @@ import (
 func TestThemeFolderExists(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		t.Run(map[bool]string{false: "standalone", true: "native"}[native], func(t *testing.T) {
+			if native && runtime.GOOS != "linux" {
+				t.Skip("Omarchy is only supported on Linux")
+			}
 			t.Setenv("HOME", t.TempDir())
 			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 			bin := t.TempDir()
@@ -73,6 +77,9 @@ func TestBlueprintKeepsWallpaperSourceAndBlurIntent(t *testing.T) {
 }
 
 func TestWallpaperOnlyPreservesActiveTheme(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Omarchy is only supported on Linux")
+	}
 	home, bin := t.TempDir(), t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
@@ -114,6 +121,9 @@ func TestWallpaperOnlyPreservesActiveTheme(t *testing.T) {
 }
 
 func TestSaveAndApplyThemeActivatesTheRenderedVariant(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Omarchy is only supported on Linux")
+	}
 	home, bin := t.TempDir(), t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))

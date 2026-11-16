@@ -4,58 +4,117 @@ package winsys
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
-// Apply runs every Windows integration for a theme. Individual targets are
-// best-effort: a missing app or locked file produces a warning instead of
-// failing the whole theme application.
+type applyTask struct {
+	run func() ([]string, error)
+}
+
+// Apply runs every Windows integration for a theme. Targets are independent,
+// so they run concurrently; the registry-based system/browser work is still
+// committed as one atomic transaction. A missing app or locked file produces a
+// warning instead of failing the whole theme application.
 func Apply(opts Options) (Result, error) {
-	var res Result
-	var errs []error
+	tasks := make([]applyTask, 0, 6)
 
 	if opts.WallpaperPath != "" {
-		if err := SetWallpaper(opts.WallpaperPath); err != nil {
-			errs = append(errs, fmt.Errorf("desktop wallpaper: %w", err))
-		} else {
-			res.Applied = append(res.Applied, "wallpaper")
-		}
+		tasks = append(tasks, applyTask{run: func() ([]string, error) {
+			if err := SetWallpaper(opts.WallpaperPath); err != nil {
+				return nil, fmt.Errorf("desktop wallpaper: %w", err)
+			}
+			return []string{"wallpaper"}, nil
+		}})
 	}
 
-	if colorErrs := applySystemColors(opts.Variables, opts.LightMode); len(colorErrs) > 0 {
-		errs = append(errs, colorErrs...)
-	} else {
-		res.Applied = append(res.Applied, "accent-color", "light-dark-mode")
-	}
+	tasks = append(tasks, applyTask{run: func() ([]string, error) {
+		if errs := applySystemColors(opts.Variables, opts.LightMode); len(errs) > 0 {
+			return nil, errors.Join(errs...)
+		}
+		return []string{"accent-color", "light-dark-mode", "chrome-accent"}, nil
+	}})
+
+	// Firefox is optional: no profile simply means Firefox is not installed or
+	// has never been launched, which is not a theme-application failure.
+	tasks = append(tasks, applyTask{run: func() ([]string, error) {
+		applied, err := applyFirefoxThemeIfPresent(opts.Variables)
+		if err != nil {
+			return nil, fmt.Errorf("firefox: %w", err)
+		}
+		if !applied {
+			return nil, nil
+		}
+		return []string{"firefox"}, nil
+	}})
 
 	if opts.IncludeTerminal {
-		if err := ApplyWindowsTerminal(opts.Variables, opts.ThemeDir); err != nil {
-			errs = append(errs, fmt.Errorf("windows terminal: %w", err))
-		} else {
-			res.Applied = append(res.Applied, "windows-terminal")
-		}
+		tasks = append(tasks, applyTask{run: func() ([]string, error) {
+			if err := ApplyWindowsTerminal(opts.Variables, opts.ThemeDir); err != nil {
+				return nil, fmt.Errorf("windows terminal: %w", err)
+			}
+			return []string{"windows-terminal"}, nil
+		}})
 	}
 
 	if opts.IncludeNeovim {
-		if err := ApplyNeovim(opts.Variables, opts.ThemeDir); err != nil {
-			errs = append(errs, fmt.Errorf("neovim: %w", err))
-		} else {
-			res.Applied = append(res.Applied, "neovim")
-		}
+		tasks = append(tasks, applyTask{run: func() ([]string, error) {
+			if err := ApplyNeovim(opts.Variables, opts.ThemeDir); err != nil {
+				return nil, fmt.Errorf("neovim: %w", err)
+			}
+			return []string{"neovim"}, nil
+		}})
 	}
 
 	if opts.IncludeZed {
-		if err := ApplyZed(opts.Variables, opts.ThemeDir, opts.LightMode); err != nil {
-			errs = append(errs, fmt.Errorf("zed: %w", err))
-		} else {
-			res.Applied = append(res.Applied, "zed")
-		}
+		tasks = append(tasks, applyTask{run: func() ([]string, error) {
+			if err := ApplyZed(opts.Variables, opts.ThemeDir, opts.LightMode); err != nil {
+				return nil, fmt.Errorf("zed: %w", err)
+			}
+			return []string{"zed"}, nil
+		}})
 	}
 
-	for _, err := range errs {
-		res.Warnings = append(res.Warnings, err.Error())
+	if opts.IncludeDiscord {
+		tasks = append(tasks, applyTask{run: func() ([]string, error) {
+			if err := ApplyDiscord(opts.Variables, opts.ThemeDir); err != nil {
+				return nil, fmt.Errorf("discord/vencord: %w", err)
+			}
+			return []string{"vencord"}, nil
+		}})
+	}
+
+	if opts.IncludeObsidian {
+		tasks = append(tasks, applyTask{run: func() ([]string, error) {
+			if err := ApplyObsidian(opts.Variables, opts.ThemeDir, opts.LightMode); err != nil {
+				return nil, fmt.Errorf("obsidian: %w", err)
+			}
+			return []string{"obsidian"}, nil
+		}})
+	}
+
+	applied := make([][]string, len(tasks))
+	errs := make([]error, len(tasks))
+	var wg sync.WaitGroup
+	for i, task := range tasks {
+		wg.Add(1)
+		go func(i int, task applyTask) {
+			defer wg.Done()
+			applied[i], errs[i] = task.run()
+		}(i, task)
+	}
+	wg.Wait()
+
+	var res Result
+	for i := range tasks {
+		if errs[i] != nil {
+			res.Warnings = append(res.Warnings, errs[i].Error())
+			continue
+		}
+		res.Applied = append(res.Applied, applied[i]...)
 	}
 	return res, nil
 }

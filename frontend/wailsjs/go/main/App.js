@@ -70,6 +70,10 @@ export function DeleteBlueprint(arg1) {
   return window['go']['main']['App']['DeleteBlueprint'](arg1);
 }
 
+export function DownloadWallhaven(arg1, arg2) {
+  return window['go']['main']['App']['DownloadWallhaven'](arg1, arg2);
+}
+
 export function DownloadWallpaper(arg1) {
   return window['go']['main']['App']['DownloadWallpaper'](arg1);
 }

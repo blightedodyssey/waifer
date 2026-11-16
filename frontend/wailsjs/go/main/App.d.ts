@@ -45,6 +45,8 @@ export function ContrastRatio(arg1:string,arg2:string):Promise<number>;
 
 export function DeleteBlueprint(arg1:string):Promise<void>;
 
+export function DownloadWallhaven(arg1:string,arg2:string):Promise<string>;
+
 export function DownloadWallpaper(arg1:string):Promise<string>;
 
 export function ExportFavorites(arg1:main.ExportFavoritesRequest):Promise<string>;

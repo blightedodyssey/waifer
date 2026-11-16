@@ -134,7 +134,11 @@ func (requests ipcTestDispatcher) HandleIPC(req ipc.Request) ipc.Response {
 
 func startIPCTestServer(t *testing.T) (string, <-chan ipc.Request) {
 	t.Helper()
-	home := t.TempDir()
+	home, err := os.MkdirTemp("", "aipc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(home) })
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	socketPath := ipc.DefaultSocketPath()

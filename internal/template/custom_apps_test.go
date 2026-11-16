@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -306,6 +307,9 @@ func TestProcessCustomApps_ReturnsAllErrors(t *testing.T) {
 }
 
 func TestProcessCustomApps_HookAfterInstall(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell hook test")
+	}
 	customDir, themeDir, hookLog := setupCustomAppsTest(t)
 	destination := filepath.Join(t.TempDir(), "destination")
 	appDir := writeCustomApp(t, customDir, "testapp", destination, true)

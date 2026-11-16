@@ -141,17 +141,28 @@ export async function applyTheme(): Promise<void> {
             ? ` with ${result.count} app override${result.count === 1 ? '' : 's'}`
             : '';
         if (result.success) {
-            const warningSuffix = result.warnings.length
-                ? ` · ${result.warnings.length} integration warning${
-                      result.warnings.length === 1 ? '' : 's'
-                  }`
-                : '';
-            showToast(`Theme applied${suffix}${warningSuffix}`);
+            if (result.warnings.length > 0) {
+                showToast(
+                    `Theme applied${suffix} · Warning: ${result.warnings.join('; ')}`
+                );
+            } else {
+                showToast(`Theme applied${suffix}`);
+            }
         } else {
             showToast(`Theme files generated${suffix}`);
         }
-    } catch {
-        showToast('Couldn’t apply theme — see logs for details');
+    } catch (e: unknown) {
+        const detail =
+            typeof e === 'string'
+                ? e
+                : e instanceof Error
+                  ? e.message
+                  : '';
+        showToast(
+            detail
+                ? `Couldn’t apply theme: ${detail}`
+                : 'Couldn’t apply theme — see logs for details'
+        );
     } finally {
         setIsApplying(false);
     }

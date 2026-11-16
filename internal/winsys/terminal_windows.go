@@ -43,14 +43,39 @@ func findTerminalSettings() string {
 }
 
 // ApplyWindowsTerminal registers (or refreshes) the Aether color scheme in
-// Windows Terminal and makes it the default for every profile. The original
-// settings file is backed up once as settings.json.aether-backup.
+// every installed Windows Terminal settings.json and makes it the default for
+// every profile. The original settings file is backed up once as
+// settings.json.aether-backup.
 func ApplyWindowsTerminal(vars map[string]string, themeDir string) error {
-	settingsPath := findTerminalSettings()
-	if settingsPath == "" {
+	var existing []string
+	for _, p := range terminalSettingsCandidates() {
+		if info, err := os.Stat(p); err == nil && info.Mode().IsRegular() {
+			existing = append(existing, p)
+		}
+	}
+	if len(existing) == 0 {
 		return fmt.Errorf("Windows Terminal settings.json not found (is Windows Terminal installed?)")
 	}
 
+	scheme := terminalScheme(themeDir, vars)
+	var firstErr error
+	appliedCount := 0
+	for _, settingsPath := range existing {
+		if err := applyTerminalSettingsFile(settingsPath, scheme); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		appliedCount++
+	}
+	if appliedCount == 0 && firstErr != nil {
+		return firstErr
+	}
+	return nil
+}
+
+func applyTerminalSettingsFile(settingsPath string, scheme map[string]any) error {
 	raw, err := os.ReadFile(settingsPath)
 	if err != nil {
 		return fmt.Errorf("read Windows Terminal settings: %w", err)
@@ -60,7 +85,6 @@ func ApplyWindowsTerminal(vars map[string]string, themeDir string) error {
 		return fmt.Errorf("parse Windows Terminal settings: %w", err)
 	}
 
-	scheme := terminalScheme(themeDir, vars)
 	upsertScheme(root, scheme)
 
 	switch profiles := root["profiles"].(type) {
@@ -154,12 +178,4 @@ func upsertScheme(root map[string]any, scheme map[string]any) {
 		kept = append(kept, entry)
 	}
 	root["schemes"] = append(kept, scheme)
-}
-
-func writeFileAtomic(path string, data []byte) error {
-	tmp := path + ".aether-tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
 }

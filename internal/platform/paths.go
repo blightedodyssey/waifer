@@ -8,6 +8,9 @@ import (
 
 // ConfigDir returns ~/.config/aether.
 func ConfigDir() string {
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		return filepath.Join(xdg, "aether")
+	}
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		dir = filepath.Join(homeDir(), ".config")
@@ -17,6 +20,9 @@ func ConfigDir() string {
 
 // CacheDir returns ~/.cache/aether.
 func CacheDir() string {
+	if xdg := os.Getenv("XDG_CACHE_HOME"); xdg != "" {
+		return filepath.Join(xdg, "aether")
+	}
 	if runtime.GOOS == "windows" {
 		if local := os.Getenv("LOCALAPPDATA"); local != "" {
 			return filepath.Join(local, "aether", "cache")
@@ -34,13 +40,13 @@ func CacheDir() string {
 // macOS: ~/Library/Application Support/aether (via os.UserConfigDir)
 // Windows: %LOCALAPPDATA%\aether\data
 func DataDir() string {
+	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
+		return filepath.Join(xdg, "aether")
+	}
 	if runtime.GOOS == "windows" {
 		if local := os.Getenv("LOCALAPPDATA"); local != "" {
 			return filepath.Join(local, "aether", "data")
 		}
-	}
-	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
-		return filepath.Join(xdg, "aether")
 	}
 	if runtime.GOOS == "darwin" {
 		// macOS: use ~/Library/Application Support
@@ -87,10 +93,13 @@ func OmarchyThemeDir() string {
 	return filepath.Join(OmarchyThemesDir(), "aether")
 }
 
-// WallpaperDir returns ~/Wallpapers, the default local scan directory.
+// WallpaperDir returns ~/Pictures/Wallpapers on Windows (auto-creating it if
+// missing) and ~/Wallpapers on other platforms.
 func WallpaperDir() string {
 	if runtime.GOOS == "windows" {
-		return filepath.Join(homeDir(), "Pictures", "Wallpapers")
+		dir := filepath.Join(homeDir(), "Pictures", "Wallpapers")
+		_ = os.MkdirAll(dir, 0o755)
+		return dir
 	}
 	return filepath.Join(homeDir(), "Wallpapers")
 }
@@ -115,8 +124,7 @@ func BlurDir() string {
 	return filepath.Join(CacheDir(), "blur")
 }
 
-// EnsureAllDirs creates all directories required by Aether. It does not create
-// WallpaperDir because that is user-managed.
+// EnsureAllDirs creates all directories required by Aether.
 func EnsureAllDirs() error {
 	dirs := []string{
 		ConfigDir(),
@@ -126,6 +134,7 @@ func EnsureAllDirs() error {
 		BlueprintDir(),
 		SavedThemesDir(),
 		CustomDir(),
+		WallpaperDir(),
 		DownloadDir(),
 		ThumbnailDir(),
 		ColorCacheDir(),
@@ -139,8 +148,19 @@ func EnsureAllDirs() error {
 	return nil
 }
 
+// HomeDir returns the current user's home directory, honoring $HOME in test
+// environments across platforms.
+func HomeDir() string {
+	return homeDir()
+}
+
 // homeDir returns the current user's home directory.
 func homeDir() string {
+	if runtime.GOOS == "windows" {
+		if home := os.Getenv("HOME"); home != "" {
+			return home
+		}
+	}
 	dir, err := os.UserHomeDir()
 	if err != nil {
 		if runtime.GOOS == "darwin" {

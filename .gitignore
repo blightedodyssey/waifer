@@ -6,3 +6,5 @@ temp/
 build/bin/
 frontend/dist/
 build/darwin/
+
+aether.exe

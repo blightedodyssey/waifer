@@ -3,14 +3,20 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
+
+	"aether/internal/platform"
 )
 
 func TestGetSettingsIncludesDefaultWallpaperFolder(t *testing.T) {
 	configHome := t.TempDir()
 	home := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", configHome)
+	t.Setenv("APPDATA", configHome)
+	t.Setenv("LOCALAPPDATA", t.TempDir())
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 
 	settings := NewApp().GetSettings()
 	got, ok := settings[wallpaperFolderSetting].(string)
@@ -18,13 +24,47 @@ func TestGetSettingsIncludesDefaultWallpaperFolder(t *testing.T) {
 		t.Fatalf("wallpaper folder type = %T; want string", settings[wallpaperFolderSetting])
 	}
 	want := filepath.Join(home, "Wallpapers")
+	if runtime.GOOS == "windows" {
+		want = filepath.Join(home, "Pictures", "Wallpapers")
+	}
 	if got != want {
 		t.Errorf("wallpaper folder = %q; want %q", got, want)
+	}
+	if got != platform.WallpaperDir() {
+		t.Errorf("wallpaper folder = %q; want platform.WallpaperDir() %q", got, platform.WallpaperDir())
+	}
+}
+
+func TestGetSettingsSelfHealsLeftoverTempPath(t *testing.T) {
+	configHome := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	t.Setenv("APPDATA", configHome)
+	t.Setenv("LOCALAPPDATA", t.TempDir())
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	app := NewApp()
+	corrupted := `C:\Users\Odyssey\AppData\Local\Temp\TestInstallDefaultWallpapersSkipsMissingConfiguredFolder2498107381\003\missing`
+	if err := app.SaveSettings(map[string]interface{}{
+		wallpaperFolderSetting: corrupted,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	settings := app.GetSettings()
+	got, _ := settings[wallpaperFolderSetting].(string)
+	want := platform.WallpaperDir()
+	if got != want {
+		t.Errorf("healed wallpaper folder = %q; want %q", got, want)
 	}
 }
 
 func TestScanLocalWallpapersUsesConfiguredFolder(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	t.Setenv("APPDATA", configHome)
+	t.Setenv("LOCALAPPDATA", t.TempDir())
 
 	folder := t.TempDir()
 	nested := filepath.Join(folder, "landscapes")
@@ -60,10 +100,16 @@ func TestScanLocalWallpapersUsesConfiguredFolder(t *testing.T) {
 }
 
 func TestScanLocalWallpapersReportsMissingConfiguredFolder(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	home := t.TempDir()
+	configHome := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	t.Setenv("APPDATA", configHome)
+	t.Setenv("LOCALAPPDATA", t.TempDir())
 
 	app := NewApp()
-	missing := filepath.Join(t.TempDir(), "missing")
+	missing := filepath.Join(home, "custom-drive", "missing")
 	if err := app.SaveSettings(map[string]interface{}{
 		wallpaperFolderSetting: missing,
 	}); err != nil {

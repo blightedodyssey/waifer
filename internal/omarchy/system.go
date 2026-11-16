@@ -4,11 +4,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"aether/internal/platform"
 )
 
 // GetCurrentThemeName reads the active theme name.
 func GetCurrentThemeName() string {
-	home, _ := os.UserHomeDir()
+	home := platform.HomeDir()
 	paths := []string{
 		filepath.Join(home, ".local", "state", "omarchy", "current", "theme.name"),
 		filepath.Join(home, ".local", "state", "omarchy", "current", "theme"),

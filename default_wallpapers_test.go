@@ -4,18 +4,23 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"aether/internal/platform"
 )
 
 func TestInstallDefaultWallpapers(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("APPDATA", t.TempDir())
+	t.Setenv("LOCALAPPDATA", t.TempDir())
 
 	if err := installDefaultWallpapers(); err != nil {
 		t.Fatal(err)
 	}
 
-	dir := filepath.Join(home, "Wallpapers", "Aether")
+	dir := filepath.Join(platform.WallpaperDir(), "Aether")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -43,7 +48,10 @@ func TestInstallDefaultWallpapers(t *testing.T) {
 func TestInstallDefaultWallpapersUsesConfiguredFolder(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("APPDATA", t.TempDir())
+	t.Setenv("LOCALAPPDATA", t.TempDir())
 
 	folder := t.TempDir()
 	if err := NewApp().SaveSettings(map[string]interface{}{
@@ -71,9 +79,12 @@ func TestInstallDefaultWallpapersUsesConfiguredFolder(t *testing.T) {
 func TestInstallDefaultWallpapersSkipsMissingConfiguredFolder(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("APPDATA", t.TempDir())
+	t.Setenv("LOCALAPPDATA", t.TempDir())
 
-	missing := filepath.Join(t.TempDir(), "missing")
+	missing := filepath.Join(home, "custom-drive", "missing")
 	if err := NewApp().SaveSettings(map[string]interface{}{
 		wallpaperFolderSetting: missing,
 	}); err != nil {

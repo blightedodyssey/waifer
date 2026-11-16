@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -57,6 +58,9 @@ func TestValidateBlueprintRejectsReservedNativeColor(t *testing.T) {
 }
 
 func TestImportCurrentColorsTomlPrefersActiveOmarchyTheme(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Omarchy is only supported on Linux")
+	}
 	home := t.TempDir()
 	binDir := t.TempDir()
 	t.Setenv("HOME", home)

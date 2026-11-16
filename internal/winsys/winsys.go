@@ -1,7 +1,7 @@
 // Package winsys applies an Aether theme to a Windows desktop: wallpaper,
-// system accent color and light/dark mode, Windows Terminal, Neovim, Zed and
-// VS Code. On other operating systems every operation is a no-op so the rest
-// of the app can call it unconditionally.
+// system accent color and light/dark mode, Chrome/Firefox browser theming,
+// Windows Terminal, Neovim, Zed and VS Code. On other operating systems every
+// operation is a no-op so the rest of the app can call it unconditionally.
 package winsys
 
 import "errors"
@@ -22,6 +22,8 @@ type Options struct {
 	IncludeTerminal bool
 	IncludeNeovim   bool
 	IncludeZed      bool
+	IncludeDiscord  bool
+	IncludeObsidian bool
 }
 
 // Result reports what was applied and anything that was skipped.

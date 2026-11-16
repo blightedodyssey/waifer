@@ -26,11 +26,35 @@ func Restore() error {
 		errs = append(errs, fmt.Errorf("Zed: %w", err))
 	}
 
+	if err := restoreChromeTheme(); err != nil {
+		errs = append(errs, fmt.Errorf("Chrome: %w", err))
+	}
+
+	if err := restoreFirefoxTheme(); err != nil {
+		errs = append(errs, fmt.Errorf("Firefox: %w", err))
+	}
+
+	if err := restoreDiscordTheme(); err != nil {
+		errs = append(errs, fmt.Errorf("Discord: %w", err))
+	}
+
+	if err := restoreObsidianTheme(); err != nil {
+		errs = append(errs, fmt.Errorf("Obsidian: %w", err))
+	}
+
 	// Remove the generated editor integrations that Aether owns.
 	if home, err := os.UserHomeDir(); err == nil {
-		vscodeExt := filepath.Join(home, ".vscode", "extensions", "local.theme-aether-1.0.0")
-		if err := os.RemoveAll(vscodeExt); err != nil {
-			errs = append(errs, fmt.Errorf("VS Code extension: %w", err))
+		for _, extDir := range []string{".vscode", ".cursor"} {
+			extPath := filepath.Join(home, extDir, "extensions", "local.theme-aether-1.0.0")
+			if err := os.RemoveAll(extPath); err != nil {
+				errs = append(errs, fmt.Errorf("%s extension: %w", extDir, err))
+			}
+		}
+	}
+	for _, appName := range []string{"Code", "Cursor"} {
+		settingsPath := filepath.Join(appDataDir(), appName, "User", "settings.json")
+		if err := restoreBackup(settingsPath); err != nil {
+			errs = append(errs, fmt.Errorf("%s settings: %w", appName, err))
 		}
 	}
 	if dir := neovimConfigDir(); dir != "" {

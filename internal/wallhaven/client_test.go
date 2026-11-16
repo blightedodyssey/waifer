@@ -227,6 +227,49 @@ func TestDownloadBoundsAndCache(t *testing.T) {
 	}
 }
 
+func TestDownloadToWallpapers(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	c := NewClient()
+	calls := 0
+	c.http.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("wallpaper bytes"))}, nil
+	})
+	dest, err := c.DownloadToWallpapers("abc123", "https://w.wallhaven.cc/full/ab/abc123_wall.jpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(platform.WallpaperDir(), "wallhaven-abc123.jpg")
+	if dest != want {
+		t.Fatalf("path = %q, want %q", dest, want)
+	}
+	if data, err := os.ReadFile(dest); err != nil || string(data) != "wallpaper bytes" {
+		t.Fatalf("contents = %q, error %v", data, err)
+	}
+	// Repeat Use clicks reuse the existing file without another request.
+	if cached, err := c.DownloadToWallpapers("abc123", "https://w.wallhaven.cc/full/ab/abc123_wall.jpg"); err != nil || cached != dest || calls != 1 {
+		t.Fatalf("cache hit: path %q, error %v, requests %d", cached, err, calls)
+	}
+	// A URL without a usable extension falls back to .jpg.
+	noExt, err := c.DownloadToWallpapers("def456", "https://w.wallhaven.cc/full/de/def456")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if noExt != filepath.Join(platform.WallpaperDir(), "wallhaven-def456.jpg") {
+		t.Fatalf("fallback extension: got %q", noExt)
+	}
+	for _, id := range []string{"", "..", "../evil", "abc/def", "abc\\def"} {
+		if _, err := c.DownloadToWallpapers(id, "https://w.wallhaven.cc/full/ab/abc.jpg"); err == nil {
+			t.Errorf("accepted unsafe wallpaper id %q", id)
+		}
+	}
+	for _, rawURL := range []string{"", "http://example.com/image.jpg", "https://127.0.0.1/image.jpg"} {
+		if _, err := c.DownloadToWallpapers("abc123", rawURL); err == nil {
+			t.Errorf("accepted unsafe URL %q", rawURL)
+		}
+	}
+}
+
 func TestRemoteSourcesWithSameFilenameUseDistinctCacheEntries(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())

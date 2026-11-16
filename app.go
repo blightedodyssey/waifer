@@ -382,6 +382,32 @@ type ApplyThemeRequest struct {
 
 // ApplyTheme processes all templates and applies the theme to the system.
 func (a *App) ApplyTheme(req ApplyThemeRequest) (*theme.ApplyResult, error) {
+	if len(req.Palette) < 16 {
+		err := fmt.Errorf("apply theme requires a 16-color palette (got %d)", len(req.Palette))
+		log.Printf("[ApplyTheme] %v", err)
+		return nil, err
+	}
+	for i := 0; i < 16; i++ {
+		if !color.IsHexColor(req.Palette[i]) {
+			err := fmt.Errorf("palette color %d (%q) is not a valid hex color", i, req.Palette[i])
+			log.Printf("[ApplyTheme] %v", err)
+			return nil, err
+		}
+	}
+	if req.WallpaperPath != "" {
+		info, err := os.Stat(req.WallpaperPath)
+		if err != nil {
+			wrapped := fmt.Errorf("wallpaper %q is not accessible: %w", req.WallpaperPath, err)
+			log.Printf("[ApplyTheme] %v", wrapped)
+			return nil, wrapped
+		}
+		if !info.Mode().IsRegular() {
+			wrapped := fmt.Errorf("wallpaper %q is not a regular file", req.WallpaperPath)
+			log.Printf("[ApplyTheme] %v", wrapped)
+			return nil, wrapped
+		}
+	}
+
 	palette, roles := buildColorRoles(req.Palette, req.ExtendedColors)
 
 	appOverrides := req.AppOverrides
@@ -973,6 +999,15 @@ func (a *App) DownloadWallpaper(imageURL string) (string, error) {
 	return a.wallhaven.Download(imageURL)
 }
 
+// DownloadWallhaven saves a full-resolution wallhaven image (the data[].path
+// value) into the user's wallpaper folder (~/Pictures/Wallpapers on Windows)
+// as wallhaven-<id>.<ext> and returns the local path. It reuses an existing
+// file when present. Errors are returned so the Wails frontend can surface
+// them to the user.
+func (a *App) DownloadWallhaven(id, imageURL string) (string, error) {
+	return a.wallhaven.DownloadToWallpapers(id, imageURL)
+}
+
 // ---------------------------------------------------------------------------
 // Local Wallpapers
 // ---------------------------------------------------------------------------
@@ -1174,8 +1209,9 @@ var allExportableApps = map[string]bool{
 	"alacritty": true, "btop": true, "chromium": true, "colors": true,
 	"foot": true, "ghostty": true, "hyprland": true, "hyprlock": true,
 	"icons": true, "kitty": true, "mako": true, "neovim": true,
-	"swayosd": true, "vencord": true, "vscode": true, "walker": true,
-	"warp": true, "waybar": true, "windows-terminal": true, "wofi": true, "zed": true,
+	"obsidian": true, "swayosd": true, "vencord": true, "vscode": true,
+	"walker": true, "warp": true, "waybar": true, "windows-terminal": true,
+	"wofi": true, "zed": true,
 }
 
 // windowsHiddenApps are Linux desktop integrations that have no meaningful
@@ -1712,8 +1748,23 @@ func writeConfigJSON(filename string, v interface{}) error {
 }
 
 func wallpaperFolderFromConfig(config map[string]interface{}) string {
-	if folder, ok := config[wallpaperFolderSetting].(string); ok && strings.TrimSpace(folder) != "" {
-		return folder
+	defaultDir := platform.WallpaperDir()
+	if config == nil {
+		return defaultDir
 	}
-	return platform.WallpaperDir()
+	folder, ok := config[wallpaperFolderSetting].(string)
+	folder = strings.TrimSpace(folder)
+	if !ok || folder == "" {
+		return defaultDir
+	}
+	// Self-heal if a leftover Go test path from AppData\Local\Temp\Test... was persisted.
+	lower := strings.ToLower(filepath.ToSlash(folder))
+	if strings.Contains(lower, "/temp/test") {
+		if info, err := os.Stat(folder); err != nil || !info.IsDir() {
+			config[wallpaperFolderSetting] = defaultDir
+			_ = writeConfigJSON("settings.json", config)
+			return defaultDir
+		}
+	}
+	return folder
 }

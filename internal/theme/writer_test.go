@@ -4,6 +4,7 @@ import (
 	"embed"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -565,7 +566,7 @@ func TestPrepareThemeDirSupportsExistingMediaSources(t *testing.T) {
 				t.Fatalf("archive symlink = %q, %v; want keep.jpg", link, err)
 			}
 			for path, mode := range map[string]os.FileMode{archive: 0o700, filepath.Join(archive, "keep.jpg"): 0o600} {
-				if info, err := os.Stat(path); err != nil || info.Mode().Perm() != mode {
+				if info, err := os.Stat(path); err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != mode) {
 					t.Fatalf("archive permissions changed for %s: %v, %v", path, info, err)
 				}
 			}
@@ -656,6 +657,9 @@ func TestStandaloneWriterReturnsGenerationErrors(t *testing.T) {
 func TestApplyThemeReturnsEditorErrorsBeforeCustomApps(t *testing.T) {
 	for _, editor := range []string{"zed", "vscode"} {
 		t.Run(editor, func(t *testing.T) {
+			if editor == "zed" && runtime.GOOS == "windows" {
+				t.Skip("Zed on Windows is applied via winsys")
+			}
 			home := setupWriterTestEnv(t)
 			target := platform.ThemeDir()
 			writeWriterTestFile(t, filepath.Join(target, zedSourceFilename), "generated Zed theme")
@@ -732,6 +736,9 @@ func TestGenerateOmarchyV4OnlyCopiesSelfSourceMedia(t *testing.T) {
 }
 
 func TestApplyOmarchyThemeKeepsBundleTransactionThroughActivation(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Omarchy is only supported on Linux")
+	}
 	for _, basename := range []string{"wall.png", "different.png"} {
 		for _, failure := range []string{"success", "background", "theme", "color only"} {
 			t.Run(basename+"/"+failure, func(t *testing.T) {
@@ -847,6 +854,9 @@ fi
 }
 
 func TestApplyOmarchyThemeRestoresCopiedRuntimeBackground(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Omarchy is only supported on Linux")
+	}
 	for _, basename := range []string{"wall.png", "different.png"} {
 		for _, failure := range []string{"theme", "background", "color only"} {
 			t.Run(basename+"/"+failure, func(t *testing.T) {

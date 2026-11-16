@@ -4,7 +4,10 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+
+	"aether/internal/platform"
 )
 
 // Version is set at build time via ldflags.
@@ -265,9 +268,9 @@ var validModes = map[string]bool{
 
 func expandHome(path string) string {
 	if strings.HasPrefix(path, "~/") {
-		home, err := os.UserHomeDir()
-		if err == nil {
-			return home + path[1:]
+		home := platform.HomeDir()
+		if home != "" {
+			return filepath.Join(home, path[2:])
 		}
 	}
 	return path

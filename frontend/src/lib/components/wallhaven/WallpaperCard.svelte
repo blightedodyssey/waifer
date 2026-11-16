@@ -5,7 +5,7 @@
         getAdditionalImages,
     } from '$lib/stores/theme.svelte';
     import {setActiveTab, showToast} from '$lib/stores/ui.svelte';
-    import {applyWallpaperOnly} from '$lib/actions/themeActions';
+    import {applyWallpaperOnly, extractColors} from '$lib/actions/themeActions';
     import {getIsApplying} from '$lib/stores/theme.svelte';
     import {openURL} from '$lib/utils/browser';
     import {observeIntersection} from '$lib/utils/intersection';
@@ -35,17 +35,35 @@
     });
 
     async function handleUse() {
+        if (isDownloading) return;
         isDownloading = true;
+        showToast('Downloading wallpaper…');
         try {
-            const {DownloadWallpaper} = await import(
+            // Full-res data[].path saved into Pictures\Wallpapers as
+            // wallhaven-<id>.<ext>; existing files are reused.
+            const {DownloadWallhaven} = await import(
                 '../../../../wailsjs/go/main/App'
             );
-            const localPath = await DownloadWallpaper(wallpaper.path);
+            const localPath = await DownloadWallhaven(
+                wallpaper.id,
+                wallpaper.path
+            );
             setWallpaperPath(localPath);
             setActiveTab('editor');
-            showToast('Wallpaper selected — click Extract to generate palette');
-        } catch (e: any) {
-            showToast('Failed to download wallpaper');
+            // Auto-populate the 16-color palette from the new wallpaper.
+            await extractColors();
+        } catch (e: unknown) {
+            const detail =
+                typeof e === 'string'
+                    ? e
+                    : e instanceof Error
+                      ? e.message
+                      : '';
+            showToast(
+                detail
+                    ? `Failed to download wallpaper: ${detail}`
+                    : 'Failed to download wallpaper'
+            );
         } finally {
             isDownloading = false;
         }
@@ -98,7 +116,7 @@
         busy={isDownloading}
         applying={getIsApplying()}
         useLabel={isDownloading ? 'Loading…' : 'Use'}
-        useTitle="Download, set as wallpaper, and open in editor"
+        useTitle="Download to Pictures\Wallpapers, set as wallpaper, and extract palette"
         visitTitle="Open on wallhaven.cc"
         onuse={handleUse}
         onwallpaperonly={() => applyWallpaperOnly(wallpaper.path)}

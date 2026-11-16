@@ -4,7 +4,6 @@ package winsys
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -50,15 +49,6 @@ func SetWallpaper(path string) error {
 	if err != nil {
 		return err
 	}
-	r, _, callErr := procSystemParametersInfoW.Call(
-		spiSetDeskWallpaper,
-		0,
-		uintptr(unsafe.Pointer(p)),
-		spifUpdateIniFile|spifSendChange,
-	)
-	if r == 0 {
-		return fmt.Errorf("SystemParametersInfoW: %w", callErr)
-	}
 
 	k, _, err := registry.CreateKey(registry.CURRENT_USER, `Control Panel\Desktop`, registry.SET_VALUE)
 	if err != nil {
@@ -75,6 +65,16 @@ func SetWallpaper(path string) error {
 	if err := k.SetStringValue("TileWallpaper", "0"); err != nil {
 		return fmt.Errorf("store wallpaper tiling: %w", err)
 	}
+
+	r, _, callErr := procSystemParametersInfoW.Call(
+		spiSetDeskWallpaper,
+		0,
+		uintptr(unsafe.Pointer(p)),
+		spifUpdateIniFile|spifSendChange,
+	)
+	if r == 0 {
+		return fmt.Errorf("SystemParametersInfoW: %w", callErr)
+	}
 	return nil
 }
 
@@ -86,28 +86,4 @@ func managedWallpaperPath(src string) string {
 		name = "current.jpg"
 	}
 	return filepath.Join(dir, name)
-}
-
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-
-	tmp := dst + ".tmp"
-	out, err := os.Create(tmp)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
-		os.Remove(tmp)
-		return err
-	}
-	if err := out.Close(); err != nil {
-		os.Remove(tmp)
-		return err
-	}
-	return os.Rename(tmp, dst)
 }

@@ -23,11 +23,7 @@ type cacheData struct {
 
 // getCacheDir returns the cache directory for color extraction results.
 func getCacheDir() string {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		homeDir = os.Getenv("HOME")
-	}
-	return filepath.Join(homeDir, ".cache", "aether", "color-cache")
+	return platform.ColorCacheDir()
 }
 
 // GetCacheKey generates a cache key based on image path, modification time, and light mode.

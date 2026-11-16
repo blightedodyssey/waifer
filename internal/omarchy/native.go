@@ -76,13 +76,13 @@ func DetectCapabilities() Capabilities {
 
 // UserThemesDir returns Omarchy's native user theme root.
 func UserThemesDir() string {
-	home, _ := os.UserHomeDir()
+	home := platform.HomeDir()
 	return filepath.Join(home, ".config", "omarchy", "themes")
 }
 
 // CurrentStateDir returns Omarchy's authoritative runtime theme directory.
 func CurrentStateDir() string {
-	home, _ := os.UserHomeDir()
+	home := platform.HomeDir()
 	return filepath.Join(home, ".local", "state", "omarchy", "current")
 }
 

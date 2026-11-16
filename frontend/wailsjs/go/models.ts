@@ -808,7 +808,9 @@ export namespace theme {
 	    success: boolean;
 	    isOmarchy: boolean;
 	    themePath: string;
+	    applied?: string[];
 	    warnings?: string[];
+	    error?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ApplyResult(source);
@@ -819,7 +821,9 @@ export namespace theme {
 	        this.success = source["success"];
 	        this.isOmarchy = source["isOmarchy"];
 	        this.themePath = source["themePath"];
+	        this.applied = source["applied"];
 	        this.warnings = source["warnings"];
+	        this.error = source["error"];
 	    }
 	}
 	export class Settings {

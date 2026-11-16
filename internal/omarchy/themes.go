@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"aether/internal/icontheme"
+	"aether/internal/platform"
 )
 
 // slugInvalid matches anything that isn't a lowercase letter, digit, hyphen,
@@ -61,12 +62,12 @@ const extraThemeDirsEnv = "AETHER_EXTRA_THEME_DIRS"
 // extension roots come first, followed by Omarchy user themes, stock themes,
 // and the standalone fallback.
 func themeSearchDirs() []string {
-	home, err := os.UserHomeDir()
-	if err != nil {
+	home := platform.HomeDir()
+	if home == "" {
 		return nil
 	}
 	var dirs []string
-	for _, d := range filepath.SplitList(os.Getenv(extraThemeDirsEnv)) {
+	for _, d := range splitThemeDirs(os.Getenv(extraThemeDirsEnv)) {
 		if d != "" {
 			dirs = append(dirs, d)
 		}
@@ -88,6 +89,18 @@ func themeSearchDirs() []string {
 		unique = append(unique, dir)
 	}
 	return unique
+}
+
+func splitThemeDirs(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	if os.PathListSeparator == ';' && !strings.Contains(raw, ";") && strings.Contains(raw, ":") {
+		// Support colon-separated POSIX-style paths in cross-platform configs/tests
+		// when no Windows drive letter is present.
+		return strings.Split(raw, ":")
+	}
+	return filepath.SplitList(raw)
 }
 
 func stockThemesDir() string {
@@ -129,7 +142,7 @@ func mergedBackgrounds(name string, sources []string) []string {
 			byName[filepath.Base(image)] = image
 		}
 	}
-	home, _ := os.UserHomeDir()
+	home := platform.HomeDir()
 	for _, image := range listBackgrounds(filepath.Join(home, ".config", "omarchy", "backgrounds", name)) {
 		byName[filepath.Base(image)] = image
 	}

@@ -2,7 +2,6 @@ package theme
 
 import (
 	"log"
-	"os"
 	"path/filepath"
 
 	"aether/internal/platform"
@@ -24,11 +23,7 @@ func ApplyZedTheme(themeDir string) error {
 		return nil
 	}
 
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-
+	home := platform.HomeDir()
 	zedThemesDir := filepath.Join(home, ".config", "zed", "themes")
 	if err := platform.EnsureDir(zedThemesDir); err != nil {
 		return err

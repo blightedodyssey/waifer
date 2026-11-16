@@ -142,8 +142,8 @@ func ReadCustomOverride(fileName string) (string, bool) {
 // expandHome replaces a leading "~/" with the user's home directory.
 func expandHome(path string) string {
 	if strings.HasPrefix(path, "~/") {
-		home, err := os.UserHomeDir()
-		if err != nil {
+		home := platform.HomeDir()
+		if home == "" {
 			return path
 		}
 		return filepath.Join(home, path[2:])

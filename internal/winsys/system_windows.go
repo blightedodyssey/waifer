@@ -4,19 +4,9 @@ package winsys
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
-	"golang.org/x/sys/windows/registry"
-)
-
-const (
-	dwmKey               = `Software\Microsoft\Windows\DWM`
-	explorerAccentKey    = `Software\Microsoft\Windows\CurrentVersion\Explorer\Accent`
-	personalizeKey       = `Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`
-	colorPrevalenceValue = "ColorPrevalence"
 )
 
 var (
@@ -25,68 +15,23 @@ var (
 	procSystemParametersInfoW = user32.NewProc("SystemParametersInfoW")
 )
 
-// setDWord opens keyPath for writing and stores name=value, creating the key
-// if it does not exist yet.
-func setDWord(keyPath, name string, value uint32) error {
-	k, _, err := registry.CreateKey(registry.CURRENT_USER, keyPath, registry.SET_VALUE)
-	if err != nil {
-		return fmt.Errorf("open %s: %w", keyPath, err)
-	}
-	defer k.Close()
-	if err := k.SetDWordValue(name, value); err != nil {
-		return fmt.Errorf("set %s\\%s: %w", keyPath, name, err)
-	}
-	return nil
-}
-
-// parseHexColor turns "#rrggbb" into its components.
-func parseHexColor(hex string) (r, g, b uint8, err error) {
-	hex = strings.TrimPrefix(strings.TrimSpace(hex), "#")
-	if len(hex) != 6 {
-		return 0, 0, 0, fmt.Errorf("invalid color %q", hex)
-	}
-	v, err := strconv.ParseUint(hex, 16, 32)
-	if err != nil {
-		return 0, 0, 0, fmt.Errorf("invalid color %q: %w", hex, err)
-	}
-	return uint8(v >> 16), uint8(v >> 8), uint8(v), nil
-}
-
-// SetAccentColor writes the palette accent to the DWM and Explorer keys.
-// Windows stores DWM colors as 0xAARRGGBB and accent colors as 0xAABBGGRR,
-// so the channel order differs between the two.
+// SetAccentColor writes the palette accent to the DWM and Explorer keys and
+// refreshes the shell. It is kept as a small public entry point for callers
+// that only want to change the accent.
 func SetAccentColor(hex string) error {
-	r, g, b, err := parseHexColor(hex)
+	values, err := accentThemeValues(map[string]string{"accent": hex})
 	if err != nil {
 		return err
 	}
-	argb := uint32(0xC4)<<24 | uint32(r)<<16 | uint32(g)<<8 | uint32(b)
-	abgr := uint32(0xFF)<<24 | uint32(b)<<16 | uint32(g)<<8 | uint32(r)
-
-	for name, value := range map[string]uint32{
-		"ColorizationColor":        argb,
-		"ColorizationAfterglow":    argb,
-		"AccentColor":              abgr,
-		colorPrevalenceValue:       1,
-		"ColorizationColorBalance": 78,
-		"ColorizationBlurBalance":  49,
-	} {
-		if err := setDWord(dwmKey, name, value); err != nil {
-			return err
-		}
-	}
-	if err := setDWord(personalizeKey, "EnableTransparency", 1); err != nil {
+	values = append(values,
+		dwordValue(personalizeKey, colorPrevalenceKey, 1),
+		dwordValue(personalizeKey, "EnableTransparency", 1),
+	)
+	values = append(values, chromeThemeValues(map[string]string{"accent": hex})...)
+	if err := writeThemeRegistry(values); err != nil {
 		return err
 	}
-	if err := setDWord(explorerAccentKey, "AccentColorMenu", abgr); err != nil {
-		return err
-	}
-	if err := setDWord(explorerAccentKey, "StartColorMenu", abgr); err != nil {
-		return err
-	}
-	if err := setDWord(personalizeKey, colorPrevalenceValue, 1); err != nil {
-		return err
-	}
+	notifyColorChange()
 	return nil
 }
 
@@ -97,54 +42,78 @@ func SetLightMode(light bool) error {
 	if light {
 		value = 1
 	}
-	for _, name := range []string{"AppsUseLightTheme", "SystemUsesLightTheme"} {
-		if err := setDWord(personalizeKey, name, value); err != nil {
-			return err
-		}
+	values := []registryValue{
+		dwordValue(personalizeKey, "AppsUseLightTheme", value),
+		dwordValue(personalizeKey, "SystemUsesLightTheme", value),
 	}
+	if err := writeThemeRegistry(values); err != nil {
+		return err
+	}
+	notifyColorChange()
 	return nil
 }
 
-// notifyColorChange tells running shell components that the color scheme
-// changed. Explorer usually also needs a restart before the taskbar and
-// Start menu pick up a new accent color.
+// applySystemColors applies accent, light/dark mode and Chrome's accent policy
+// in one atomic registry transaction, then broadcasts the change immediately.
+// The transaction runs off the caller's goroutine so wallpaper and editor work
+// can proceed in parallel.
+func applySystemColors(vars map[string]string, lightMode bool) []error {
+	values, err := systemThemeValues(vars, lightMode)
+	if err != nil {
+		return []error{fmt.Errorf("system colors: %w", err)}
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- writeThemeRegistry(values)
+	}()
+	if err := <-done; err != nil {
+		return []error{fmt.Errorf("system colors: %w", err)}
+	}
+
+	// Commit has succeeded; tell Explorer, Start, the notification center and
+	// every other top-level window to repaint with the new colors.
+	notifyColorChange()
+	return nil
+}
+
+// notifyColorChange broadcasts WM_SETTINGCHANGE (plus the theme/color messages
+// some legacy windows listen for) without restarting Explorer. SendMessageTimeout
+// keeps hung applications from blocking the apply operation.
 func notifyColorChange() {
 	const (
-		hwndBroadcast       = 0xFFFF
-		wmSettingChange     = 0x001A
-		smtoAbortIfHung     = 0x0002
-		smtoSendNotify      = 0x0000
-		settingChangeTimout = 2000
+		hwndBroadcast    = 0xFFFF
+		wmSettingChange  = 0x001A
+		wmThemeChanged   = 0x031A
+		wmSysColorChange = 0x0015
+		smtoAbortIfHung  = 0x0002
+		timeoutMS        = 5000
 	)
-	for _, area := range []string{"ImmersiveColorSet", "WindowMetrics"} {
-		p, err := windows.UTF16PtrFromString(area)
-		if err != nil {
-			continue
+
+	broadcast := func(message uintptr, area string) {
+		var areaPtr *uint16
+		if area != "" {
+			var err error
+			areaPtr, err = windows.UTF16PtrFromString(area)
+			if err != nil {
+				return
+			}
 		}
 		var result uintptr
 		procSendMessageTimeoutW.Call(
 			hwndBroadcast,
-			wmSettingChange,
+			message,
 			0,
-			uintptr(unsafe.Pointer(p)),
-			smtoAbortIfHung|smtoSendNotify,
-			settingChangeTimout,
+			uintptr(unsafe.Pointer(areaPtr)),
+			smtoAbortIfHung,
+			timeoutMS,
 			uintptr(unsafe.Pointer(&result)),
 		)
 	}
-}
 
-// applySystemColors applies accent and light/dark mode in one operation.
-func applySystemColors(vars map[string]string, lightMode bool) []error {
-	var errs []error
-	if accent := vars["accent"]; accent != "" {
-		if err := SetAccentColor(accent); err != nil {
-			errs = append(errs, fmt.Errorf("accent color: %w", err))
-		}
+	for _, area := range []string{"ImmersiveColorSet", "ImmersiveColorPrevalence", "WindowMetrics"} {
+		broadcast(wmSettingChange, area)
 	}
-	if err := SetLightMode(lightMode); err != nil {
-		errs = append(errs, fmt.Errorf("light/dark mode: %w", err))
-	}
-	notifyColorChange()
-	return errs
+	broadcast(wmThemeChanged, "")
+	broadcast(wmSysColorChange, "")
 }

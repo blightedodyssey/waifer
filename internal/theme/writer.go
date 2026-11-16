@@ -35,6 +35,7 @@ var templateAppNameMap = map[string]string{
 	"kitty.conf":            "kitty",
 	"mako.ini":              "mako",
 	"neovim.lua":            "neovim",
+	"obsidian.css":          "obsidian",
 	"swayosd.css":           "swayosd",
 	"walker.css":            "walker",
 	"waybar.css":            "waybar",
@@ -143,7 +144,9 @@ type ApplyResult struct {
 	Success   bool     `json:"success"`
 	IsOmarchy bool     `json:"isOmarchy"`
 	ThemePath string   `json:"themePath"`
+	Applied   []string `json:"applied,omitempty"`
 	Warnings  []string `json:"warnings,omitempty"`
+	Error     string   `json:"error,omitempty"`
 }
 
 // Writer processes templates from an embed.FS and generates theme files.
@@ -426,14 +429,17 @@ func (w *Writer) generateOmarchyTheme(state *ThemeState, settings Settings, outp
 func (w *Writer) ApplyTheme(state *ThemeState, settings Settings) (*ApplyResult, error) {
 	state, err := materializeWallpaper(state)
 	if err != nil {
-		return nil, err
+		log.Printf("[ApplyTheme] materializeWallpaper error: %v", err)
+		return &ApplyResult{Success: false, ThemePath: platform.ThemeDir(), Error: err.Error()}, err
 	}
 	if err := validateIconTheme(state.IconTheme, settings.includesApp("icons")); err != nil {
-		return nil, err
+		log.Printf("[ApplyTheme] validateIconTheme error: %v", err)
+		return &ApplyResult{Success: false, ThemePath: platform.ThemeDir(), Error: err.Error()}, err
 	}
 	variables := template.BuildVariables(state.ColorRoles, state.LightMode, state.ExtendedColors)
 	if err := validateTemplateInputs(variables, state.AppOverrides); err != nil {
-		return &ApplyResult{Success: false, IsOmarchy: IsOmarchyInstalled(), ThemePath: platform.ThemeDir()}, err
+		log.Printf("[ApplyTheme] validateTemplateInputs error: %v", err)
+		return &ApplyResult{Success: false, IsOmarchy: IsOmarchyInstalled(), ThemePath: platform.ThemeDir(), Error: err.Error()}, err
 	}
 	if err := RetireLegacyGTKStylesheets(); err != nil {
 		log.Printf("Warning: legacy GTK stylesheet cleanup failed: %v", err)
@@ -443,20 +449,25 @@ func (w *Writer) ApplyTheme(state *ThemeState, settings Settings) (*ApplyResult,
 	if isOmarchy {
 		themeDir := platform.OmarchyThemeDir()
 		if err := w.generateOmarchyTheme(state, settings, themeDir, "aether"); err != nil {
-			return &ApplyResult{Success: false, IsOmarchy: true, ThemePath: themeDir}, err
+			log.Printf("[ApplyTheme] generateOmarchyTheme error: %v", err)
+			return &ApplyResult{Success: false, IsOmarchy: true, ThemePath: themeDir, Error: err.Error()}, err
 		}
 		return &ApplyResult{Success: true, IsOmarchy: true, ThemePath: themeDir}, nil
 	}
 
 	themeDir := platform.ThemeDir()
 	if _, err := prepareThemeDir(themeDir, state); err != nil {
-		return &ApplyResult{Success: false, ThemePath: themeDir}, err
+		log.Printf("[ApplyTheme] prepareThemeDir error: %v", err)
+		return &ApplyResult{Success: false, ThemePath: themeDir, Error: err.Error()}, err
 	}
 	if err := w.processTemplates(variables, themeDir, settings, state.AppOverrides, state.ExtendedColors, state.IconTheme); err != nil {
-		return &ApplyResult{Success: false, ThemePath: themeDir}, err
+		log.Printf("[ApplyTheme] processTemplates error: %v", err)
+		return &ApplyResult{Success: false, ThemePath: themeDir, Error: err.Error()}, err
 	}
 	if err := HandleLightModeMarker(themeDir, state.LightMode); err != nil {
-		return &ApplyResult{Success: false, ThemePath: themeDir}, fmt.Errorf("update light mode marker: %w", err)
+		wrapped := fmt.Errorf("update light mode marker: %w", err)
+		log.Printf("[ApplyTheme] %v", wrapped)
+		return &ApplyResult{Success: false, ThemePath: themeDir, Error: wrapped.Error()}, wrapped
 	}
 	if err := w.applyEditorThemes(
 		themeDir,
@@ -465,10 +476,13 @@ func (w *Writer) ApplyTheme(state *ThemeState, settings Settings) (*ApplyResult,
 		settings.includesApp("zed"),
 		settings.includesApp("vscode"),
 	); err != nil {
-		return &ApplyResult{Success: false, ThemePath: themeDir}, err
+		log.Printf("[ApplyTheme] applyEditorThemes error: %v", err)
+		return &ApplyResult{Success: false, ThemePath: themeDir, Error: err.Error()}, err
 	}
 	if err := template.ProcessCustomApps(themeDir, variables); err != nil {
-		return &ApplyResult{Success: false, ThemePath: themeDir}, fmt.Errorf("process custom apps: %w", err)
+		wrapped := fmt.Errorf("process custom apps: %w", err)
+		log.Printf("[ApplyTheme] %v", wrapped)
+		return &ApplyResult{Success: false, ThemePath: themeDir, Error: wrapped.Error()}, wrapped
 	}
 
 	winResult, err := winsys.Apply(winsys.Options{
@@ -479,14 +493,28 @@ func (w *Writer) ApplyTheme(state *ThemeState, settings Settings) (*ApplyResult,
 		IncludeTerminal: settings.includesApp("windows-terminal"),
 		IncludeNeovim:   settings.includesApp("neovim"),
 		IncludeZed:      settings.includesApp("zed"),
+		IncludeDiscord:  settings.includesApp("vencord") || settings.includesApp("discord"),
+		IncludeObsidian: settings.includesApp("obsidian"),
 	})
 	if err != nil {
-		log.Printf("windows theme application: %v", err)
+		log.Printf("[ApplyTheme] windows theme application error: %v", err)
+		return &ApplyResult{
+			Success:   false,
+			ThemePath: themeDir,
+			Applied:   winResult.Applied,
+			Warnings:  winResult.Warnings,
+			Error:     err.Error(),
+		}, err
 	}
 	for _, warning := range winResult.Warnings {
-		log.Printf("windows theme application: %s", warning)
+		log.Printf("[ApplyTheme] windows theme application warning: %s", warning)
 	}
-	return &ApplyResult{Success: true, ThemePath: themeDir, Warnings: winResult.Warnings}, nil
+	return &ApplyResult{
+		Success:   true,
+		ThemePath: themeDir,
+		Applied:   winResult.Applied,
+		Warnings:  winResult.Warnings,
+	}, nil
 }
 
 // GenerateOnly generates theme files to the specified output path without
