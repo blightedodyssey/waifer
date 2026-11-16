@@ -8,3 +8,4 @@ frontend/dist/
 build/darwin/
 
 aether.exe
+*.syso

@@ -830,7 +830,7 @@ func (w *Writer) processTemplates(
 		outputPath := filepath.Join(outputDir, fileName)
 		appName := getAppNameFromFileName(fileName)
 		if appName != "colors" && !settings.includesApp(appName) && (appName == "icons" || len(appOverrides[appName]) == 0) {
-			if err := os.Remove(outputPath); err != nil && !os.IsNotExist(err) {
+			if err := os.RemoveAll(outputPath); err != nil && !os.IsNotExist(err) {
 				return fmt.Errorf("remove stale template %s: %w", fileName, err)
 			}
 			continue
