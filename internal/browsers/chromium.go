@@ -69,15 +69,12 @@ func chromiumThemeColors(vars map[string]string) map[string][]int {
 
 // patchChromiumPreferences patches the "Preferences" JSON in a Chromium profile
 // to set the active theme color and hint.  The write is atomic (write-temp-then-rename).
-// If a sentinel lock file exists (indicating the browser is running), the patch
-// is skipped to avoid corruption.
+// If a sentinel lock file exists (indicating the browser is running), a warning
+// is logged but the preferences are still patched. Preferences are JSON, not a
+// live database, so the risk of corruption is low; the next Chrome start will
+// pick up the new values.
 func patchChromiumPreferences(profilePath string, vars map[string]string) error {
 	prefsPath := filepath.Join(profilePath, "Preferences")
-	lockPath := filepath.Join(profilePath, "LOCK")
-
-	if _, err := os.Stat(lockPath); err == nil {
-		return fmt.Errorf("browser appears to be running (LOCK file present); preferences not patched")
-	}
 
 	data, err := os.ReadFile(prefsPath)
 	if err != nil {
@@ -116,6 +113,13 @@ func patchChromiumPreferences(profilePath string, vars map[string]string) error 
 
 	if err := writeFileAtomic(prefsPath, modified); err != nil {
 		return fmt.Errorf("write Preferences: %w", err)
+	}
+
+	// Warn if Chrome is running — it will not see the change until restart, but
+	// the DWM registry policy should have already applied live.
+	lockPath := filepath.Join(profilePath, "LOCK")
+	if _, err := os.Stat(lockPath); err == nil {
+		return fmt.Errorf("browser is running (LOCK present); Preferences patched but will apply on next start")
 	}
 	return nil
 }

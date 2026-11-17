@@ -53,7 +53,13 @@ func Apply(opts Options) (Result, error) {
 			if errs := applySystemColors(opts.Variables, opts.LightMode); len(errs) > 0 {
 				return nil, errors.Join(errs...)
 			}
-			return []string{"accent-color", "light-dark-mode", "chrome-accent"}, nil
+			// Best-effort DWM caption / border colors for Chrome and File
+			// Explorer windows so they repaint live even while running.
+			_ = ApplyDWMTitlebarAttributes(
+				opts.Variables["accent"],
+				[]string{"Chrome", "CabinetWClass"},
+			)
+			return []string{"accent-color", "light-dark-mode", "chrome-accent", "dwm-titlebars"}, nil
 		}})
 	}
 
@@ -130,6 +136,11 @@ func Apply(opts Options) (Result, error) {
 	if opts.IncludeBrowser {
 		tasks = append(tasks, applyTask{run: func() ([]string, error) {
 			applied, warnings := ApplyBrowserTheme(opts.Variables)
+			// Live DWM caption / border refresh for any running Chrome windows.
+			_ = ApplyDWMTitlebarAttributes(
+				opts.Variables["accent"],
+				[]string{"Chrome"},
+			)
 			if len(warnings) > 0 {
 				return applied, errors.New(strings.Join(warnings, "; "))
 			}

@@ -140,6 +140,7 @@ func TestApplyOpenCodeCreatesThemeAndUpdatesConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 	t.Setenv("USERPROFILE", tmpDir)
+	t.Setenv("LOCALAPPDATA", filepath.Join(tmpDir, "AppData", "Local"))
 
 	configDir := filepath.Join(tmpDir, ".config", "opencode")
 	os.MkdirAll(configDir, 0o755)
@@ -168,7 +169,7 @@ func TestApplyOpenCodeCreatesThemeAndUpdatesConfig(t *testing.T) {
 		t.Fatal("expected at least one opencode target applied")
 	}
 
-	// Verify theme file
+	// Verify TUI theme file
 	themePath := filepath.Join(configDir, "themes", "aether.json")
 	data, err := os.ReadFile(themePath)
 	if err != nil {
@@ -197,6 +198,34 @@ func TestApplyOpenCodeCreatesThemeAndUpdatesConfig(t *testing.T) {
 	if _, ok := cli["mcpServers"]; !ok {
 		t.Error("mcpServers was removed from cli.json")
 	}
+
+	// Verify Desktop theme JSON
+	pluginDir := filepath.Join(configDir, "plugins", "aether-theme")
+	desktopPath := filepath.Join(pluginDir, "desktop-theme.json")
+	desktopRaw, err := os.ReadFile(desktopPath)
+	if err != nil {
+		t.Fatalf("desktop theme not created: %v", err)
+	}
+	var desktop map[string]interface{}
+	if err := json.Unmarshal(desktopRaw, &desktop); err != nil {
+		t.Fatal(err)
+	}
+	if desktop["name"] != "Aether" {
+		t.Errorf("desktop theme name = %v, want Aether", desktop["name"])
+	}
+	if desktop["id"] != "aether" {
+		t.Errorf("desktop theme id = %v, want aether", desktop["id"])
+	}
+
+	// Verify GUI plugin index.ts
+	idxPath := filepath.Join(pluginDir, "index.ts")
+	idxRaw, err := os.ReadFile(idxPath)
+	if err != nil {
+		t.Fatalf("plugin index not created: %v", err)
+	}
+	if !strings.Contains(string(idxRaw), "ctx.add(gui.Theme, themeData)") {
+		t.Error("plugin index.ts missing ctx.add(gui.Theme, themeData)")
+	}
 }
 
 func TestApplyOpenCodeSkipsMissing(t *testing.T) {
@@ -212,6 +241,143 @@ func TestApplyOpenCodeSkipsMissing(t *testing.T) {
 	}
 	if len(warnings) > 0 {
 		t.Logf("warnings: %v", warnings)
+	}
+}
+
+func TestApplyOpenCodeRegistersPluginInOpencodeJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
+	t.Setenv("LOCALAPPDATA", filepath.Join(tmpDir, "AppData", "Local"))
+
+	configDir := filepath.Join(tmpDir, ".config", "opencode")
+	os.MkdirAll(configDir, 0o755)
+
+	// Existing opencode.json with plugins array and sensitive keys
+	cfg := map[string]interface{}{
+		"providers": []string{"openai"},
+		"plugins":   []string{"file:///existing/plugin"},
+		"model":     "gpt-4",
+	}
+	raw, _ := json.Marshal(cfg)
+	os.WriteFile(filepath.Join(configDir, "opencode.json"), raw, 0o644)
+
+	vars := map[string]string{
+		"accent": "#89b4fa", "theme_type": "dark",
+	}
+	applied, warnings := applyOpenCode(vars)
+	if len(warnings) > 0 {
+		t.Logf("warnings: %v", warnings)
+	}
+	found := false
+	for _, a := range applied {
+		if strings.Contains(a, "opencode.json-plugin-registered") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected opencode.json plugin registration in applied list, got: %v", applied)
+	}
+
+	result, err := os.ReadFile(filepath.Join(configDir, "opencode.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resultMap map[string]interface{}
+	if err := json.Unmarshal(result, &resultMap); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify providers still present
+	if _, ok := resultMap["providers"]; !ok {
+		t.Error("providers removed from opencode.json")
+	}
+
+	// Verify model still present
+	if resultMap["model"] != "gpt-4" {
+		t.Errorf("model = %v, want gpt-4", resultMap["model"])
+	}
+
+	// Verify plugin got added
+	plugins, ok := resultMap["plugins"].([]interface{})
+	if !ok {
+		t.Fatalf("plugins type = %T, want []interface{}", resultMap["plugins"])
+	}
+	if len(plugins) != 2 {
+		t.Errorf("plugins len = %d, want 2", len(plugins))
+	}
+	if plugins[0] != "file:///existing/plugin" {
+		t.Errorf("plugins[0] = %v", plugins[0])
+	}
+	pluginDir := filepath.Join(configDir, "plugins", "aether-theme")
+	expected := "file://" + filepath.ToSlash(pluginDir)
+	if plugins[1] != expected {
+		t.Errorf("plugin URI = %v, want %v", plugins[1], expected)
+	}
+}
+
+func TestApplyOpenCodeRegistersPluginInOpencodeJSONC(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
+	t.Setenv("LOCALAPPDATA", filepath.Join(tmpDir, "AppData", "Local"))
+
+	configDir := filepath.Join(tmpDir, ".config", "opencode")
+	os.MkdirAll(configDir, 0o755)
+
+	// JSONC with comments and trailing comma
+	jsonc := `{
+  // My model settings
+  "model": "gpt-4",
+  "plugins": [
+    "file:///existing/plugin",
+  ],
+}`
+	os.WriteFile(filepath.Join(configDir, "opencode.jsonc"), []byte(jsonc), 0o644)
+
+	vars := map[string]string{
+		"accent": "#89b4fa", "theme_type": "dark",
+	}
+	applied, warnings := applyOpenCode(vars)
+	if len(warnings) > 0 {
+		t.Logf("warnings: %v", warnings)
+	}
+	found := false
+	for _, a := range applied {
+		if strings.Contains(a, "opencode.jsonc-plugin-registered") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected opencode.jsonc plugin registration in applied list, got: %v", applied)
+	}
+
+	result, err := os.ReadFile(filepath.Join(configDir, "opencode.jsonc"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resultMap map[string]interface{}
+	if err := json.Unmarshal(result, &resultMap); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify model still present
+	if resultMap["model"] != "gpt-4" {
+		t.Errorf("model = %v, want gpt-4", resultMap["model"])
+	}
+
+	// Verify plugin got added
+	plugins, ok := resultMap["plugins"].([]interface{})
+	if !ok {
+		t.Fatalf("plugins type = %T, want []interface{}", resultMap["plugins"])
+	}
+	if len(plugins) != 2 {
+		t.Errorf("plugins len = %d, want 2", len(plugins))
+	}
+	pluginDir := filepath.Join(configDir, "plugins", "aether-theme")
+	expected := "file://" + filepath.ToSlash(pluginDir)
+	if plugins[1] != expected {
+		t.Errorf("plugin URI = %v, want %v", plugins[1], expected)
 	}
 }
 

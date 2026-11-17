@@ -124,5 +124,10 @@ text:
 		applied = append(applied, "hermes-skin")
 	}
 
+	// 3. Hermes Desktop (Electron tray UI)
+	dApplied, dWarnings := applyHermesDesktop(vars)
+	applied = append(applied, dApplied...)
+	warnings = append(warnings, dWarnings...)
+
 	return applied, warnings
 }

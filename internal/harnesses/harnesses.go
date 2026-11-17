@@ -138,6 +138,119 @@ func safeMergeYAML(path string, updater func(map[string]interface{}) error) erro
 	return backupAndWrite(path, out)
 }
 
+// safeMergeJSONC reads an existing JSON / JSONC file, strips comments,
+// unmarshals it, calls updater on the map, marshals back, backs up the
+// original, then writes atomically. It is like safeMergeJSON but tolerates
+// JSONC syntax (// and /* */ comments, trailing commas).
+func safeMergeJSONC(path string, updater func(map[string]interface{}) error) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create parent dir: %w", err)
+	}
+
+	var data map[string]interface{}
+	if raw, err := os.ReadFile(path); err == nil {
+		cleaned := removeTrailingCommas(stripJSONComments(raw))
+		if err := json.Unmarshal(cleaned, &data); err != nil {
+			return fmt.Errorf("existing config is malformed: %w", err)
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("read existing config: %w", err)
+	}
+	if data == nil {
+		data = make(map[string]interface{})
+	}
+
+	if err := updater(data); err != nil {
+		return err
+	}
+
+	out, err := jsonMarshal(data)
+	if err != nil {
+		return fmt.Errorf("marshal updated config: %w", err)
+	}
+
+	return backupAndWrite(path, out)
+}
+
+func stripJSONComments(data []byte) []byte {
+	data = []byte(strings.TrimPrefix(string(data), "\ufeff"))
+	out := make([]byte, 0, len(data))
+	inString, escaped := false, false
+	for i := 0; i < len(data); i++ {
+		c := data[i]
+		if inString {
+			out = append(out, c)
+			switch {
+			case escaped:
+				escaped = false
+			case c == '\\':
+				escaped = true
+			case c == '"':
+				inString = false
+			}
+			continue
+		}
+		switch {
+		case c == '"':
+			inString = true
+			out = append(out, c)
+		case c == '/' && i+1 < len(data) && data[i+1] == '/':
+			for i < len(data) && data[i] != '\n' {
+				i++
+			}
+			if i < len(data) {
+				out = append(out, '\n')
+			}
+		case c == '/' && i+1 < len(data) && data[i+1] == '*':
+			i += 2
+			for i+1 < len(data) && !(data[i] == '*' && data[i+1] == '/') {
+				i++
+			}
+			i++ // skip closing /
+		default:
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func removeTrailingCommas(data []byte) []byte {
+	out := make([]byte, 0, len(data))
+	inString, escaped := false, false
+	for i := 0; i < len(data); i++ {
+		c := data[i]
+		if inString {
+			out = append(out, c)
+			switch {
+			case escaped:
+				escaped = false
+			case c == '\\':
+				escaped = true
+			case c == '"':
+				inString = false
+			}
+			continue
+		}
+		if c == '"' {
+			inString = true
+			out = append(out, c)
+			continue
+		}
+		if c == ',' {
+			j := i + 1
+			for j < len(data) && strings.ContainsRune(" \t\r\n", rune(data[j])) {
+				j++
+			}
+			if j < len(data) && (data[j] == '}' || data[j] == ']') {
+				continue
+			}
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
 // backupAndWrite writes a .aether.bak backup then performs atomic write.
 func backupAndWrite(path string, data []byte) error {
 	if _, err := os.Stat(path); err == nil {

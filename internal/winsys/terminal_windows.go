@@ -105,12 +105,9 @@ func applyTerminalSettingsFile(settingsPath string, scheme map[string]any) error
 	}
 	defaults["colorScheme"] = terminalSchemeName
 
-	// Verify that profiles.list is present and non-empty to prevent corrupting
-	// the settings file with "All profiles were hidden" errors.
-	list, _ := profiles["list"].([]any)
-	if len(list) == 0 {
-		return fmt.Errorf("Windows Terminal profiles.list is empty or missing; file left unchanged")
-	}
+	// profiles.list is allowed to be missing or empty when the user only
+	// wants defaults to apply to every new profile.  Do not reject the
+	// file in that case.
 
 	// Create backup on first run (idempotent).
 	backup := settingsPath + ".aether-backup"

@@ -134,7 +134,9 @@ func TestApplyWindowsTerminalPreservesProfilesList(t *testing.T) {
 func TestApplyWindowsTerminalAbortsOnEmptyProfilesList(t *testing.T) {
 	_, settingsPath := setupTerminalTestEnv(t)
 
-	// profiles.list is empty — this is the regression case.
+	// profiles.list is empty — this is no longer a fatal error; we still
+	// upsert the Aether scheme and set profiles.defaults.colorScheme so
+	// any future profiles inherit the theme.
 	initial := `{
     "profiles": {
         "list": []
@@ -148,17 +150,23 @@ func TestApplyWindowsTerminalAbortsOnEmptyProfilesList(t *testing.T) {
 	vars := map[string]string{"background": "#000", "foreground": "#fff"}
 
 	err := ApplyWindowsTerminal(vars, filepath.Dir(settingsPath))
-	if err == nil {
-		t.Fatal("expected an error for empty profiles.list, got nil")
-	}
-	if !strings.Contains(err.Error(), "profiles.list is empty or missing") {
-		t.Errorf("error message = %q, want substring %q", err.Error(), "profiles.list is empty or missing")
+	if err != nil {
+		t.Fatalf("expected nil error for empty profiles.list, got: %v", err)
 	}
 
-	// File must remain unchanged.
-	data, _ := os.ReadFile(settingsPath)
-	if string(data) != initial {
-		t.Errorf("settings.json was modified on failure:\nbefore: %s\nafter:  %s", initial, string(data))
+	// File must have been updated.
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var updated map[string]interface{}
+	if err := json.Unmarshal(data, &updated); err != nil {
+		t.Fatal(err)
+	}
+	profs := updated["profiles"].(map[string]interface{})
+	defs := profs["defaults"].(map[string]interface{})
+	if defs["colorScheme"] != "Aether" {
+		t.Errorf("expected colorScheme = Aether, got %v", defs["colorScheme"])
 	}
 }
 

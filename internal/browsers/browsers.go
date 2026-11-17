@@ -73,11 +73,13 @@ func Detect() DetectedBrowsers {
 // ApplyTheme applies the Aether palette to all detected browsers.  Vars holds
 // the resolved template variables (background, foreground, accent, etc.).
 func ApplyTheme(vars map[string]string) (applied []string, warnings []string) {
+	expectedChromeData := map[string]string{}
 	for _, d := range chromiumDefinitions() {
 		info := detectChromiumFamily(d)
 		if !info.HasData {
 			continue
 		}
+		expectedChromeData[info.Name] = d.userData
 		for _, prof := range info.Profiles {
 			if err := patchChromiumPreferences(prof.Path, vars); err != nil {
 				warnings = append(warnings, fmt.Sprintf("%s %s: %v", info.Display, prof.Name, err))
@@ -85,6 +87,15 @@ func ApplyTheme(vars map[string]string) (applied []string, warnings []string) {
 				applied = append(applied, fmt.Sprintf("%s-%s", info.Name, prof.Name))
 			}
 		}
+	}
+
+	// Patch PWAs (saved Chrome Web Apps) and WebCatalog app manifests.
+	for _, userData := range expectedChromeData {
+		manifests, ws := PatchPWAsAndWebCatalog(userData, vars)
+		if len(manifests) > 0 {
+			applied = append(applied, fmt.Sprintf("chrome-pwas-%d", len(manifests)))
+		}
+		warnings = append(warnings, ws...)
 	}
 	
 	// Generate the unpacked extension for manual loading.
