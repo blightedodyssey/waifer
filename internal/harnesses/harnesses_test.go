@@ -169,21 +169,27 @@ func TestApplyOpenCodeCreatesThemeAndUpdatesConfig(t *testing.T) {
 		t.Fatal("expected at least one opencode target applied")
 	}
 
-	// Verify TUI theme file
-	themePath := filepath.Join(configDir, "themes", "aether.json")
-	data, err := os.ReadFile(themePath)
+	// Verify the native V2 hot-reload theme file.
+	themeFiles, err := filepath.Glob(filepath.Join(configDir, "themes", "aether-live-*.json"))
+	if err != nil || len(themeFiles) == 0 {
+		t.Fatalf("OpenCode V2 theme file not created: %v", err)
+	}
+	data, err := os.ReadFile(themeFiles[0])
 	if err != nil {
-		t.Fatalf("theme file not created: %v", err)
+		t.Fatalf("read theme file: %v", err)
 	}
 	var theme map[string]interface{}
 	if err := json.Unmarshal(data, &theme); err != nil {
 		t.Fatal(err)
 	}
-	if theme["name"] != "aether" {
-		t.Errorf("theme name = %v, want aether", theme["name"])
+	if theme["$schema"] != "https://opencode.ai" {
+		t.Errorf("theme $schema = %v", theme["$schema"])
+	}
+	if theme["base"] == nil || theme["dark"] == nil || theme["light"] == nil {
+		t.Error("theme is missing base/dark/light sections")
 	}
 
-	// Verify cli.json preserved sensitive keys
+	// Verify cli.json preserved sensitive keys and points at a live slot.
 	cliResult, err := os.ReadFile(filepath.Join(configDir, "cli.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -192,8 +198,9 @@ func TestApplyOpenCodeCreatesThemeAndUpdatesConfig(t *testing.T) {
 	if err := json.Unmarshal(cliResult, &cli); err != nil {
 		t.Fatal(err)
 	}
-	if cli["theme"].(map[string]interface{})["name"] != "aether" {
-		t.Error("theme not updated in cli.json")
+	name, _ := cli["theme"].(map[string]interface{})["name"].(string)
+	if name != "aether-live-a" && name != "aether-live-b" {
+		t.Errorf("cli theme name = %q, want an aether-live slot", name)
 	}
 	if _, ok := cli["mcpServers"]; !ok {
 		t.Error("mcpServers was removed from cli.json")
@@ -441,8 +448,8 @@ func TestApplyPiCreatesThemeAndUpdatesSettings(t *testing.T) {
 	piDir := filepath.Join(tmpDir, ".pi", "agent")
 	os.MkdirAll(piDir, 0o755)
 	settings := map[string]interface{}{
-		"model":    "gpt-4",
-		"apiKey":   "secret",
+		"model":  "gpt-4",
+		"apiKey": "secret",
 	}
 	settingsRaw, _ := json.Marshal(settings)
 	os.WriteFile(filepath.Join(piDir, "settings.json"), settingsRaw, 0o644)

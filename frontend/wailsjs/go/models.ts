@@ -1,3 +1,92 @@
+export namespace browsers {
+	
+	export class ProfileInfo {
+	    name: string;
+	    path: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProfileInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.path = source["path"];
+	    }
+	}
+	export class BrowserInfo {
+	    name: string;
+	    display: string;
+	    profiles: ProfileInfo[];
+	    hasData: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new BrowserInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.display = source["display"];
+	        this.profiles = this.convertValues(source["profiles"], ProfileInfo);
+	        this.hasData = source["hasData"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DetectedBrowsers {
+	    browsers: BrowserInfo[];
+	    extensionPath: string;
+	    hasExtension: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new DetectedBrowsers(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.browsers = this.convertValues(source["browsers"], BrowserInfo);
+	        this.extensionPath = source["extensionPath"];
+	        this.hasExtension = source["hasExtension"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace color {
 	
 	export class Adjustments {
@@ -127,6 +216,59 @@ export namespace githubsource {
 	        this.width = source["width"];
 	        this.height = source["height"];
 	    }
+	}
+
+}
+
+export namespace harnesses {
+	
+	export class HarnessInfo {
+	    name: string;
+	    display: string;
+	    path: string;
+	    hasData: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new HarnessInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.display = source["display"];
+	        this.path = source["path"];
+	        this.hasData = source["hasData"];
+	    }
+	}
+	export class DetectedHarnesses {
+	    harnesses: HarnessInfo[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DetectedHarnesses(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.harnesses = this.convertValues(source["harnesses"], HarnessInfo);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }
@@ -297,6 +439,28 @@ export namespace ipc {
 
 export namespace main {
 	
+	export class AetherDirStatus {
+	    currentThemePath: string;
+	    hasCurrentTheme: boolean;
+	    templateCount: number;
+	    hasHookScript: boolean;
+	    templatesDir: string;
+	    hooksDir: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AetherDirStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.currentThemePath = source["currentThemePath"];
+	        this.hasCurrentTheme = source["hasCurrentTheme"];
+	        this.templateCount = source["templateCount"];
+	        this.hasHookScript = source["hasHookScript"];
+	        this.templatesDir = source["templatesDir"];
+	        this.hooksDir = source["hooksDir"];
+	    }
+	}
 	export class ApplyThemeRequest {
 	    palette: string[];
 	    wallpaperPath: string;
@@ -649,30 +813,10 @@ export namespace main {
 		    return a;
 		}
 	}
-	export class AetherDirStatus {
-	    currentThemePath: string;
-	    hasCurrentTheme: boolean;
-	    templateCount: number;
-	    hasHookScript: boolean;
-	    templatesDir: string;
-	    hooksDir: string;
-
-	    static createFrom(source: any = {}) {
-	        return new AetherDirStatus(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.currentThemePath = source["currentThemePath"];
-	        this.hasCurrentTheme = source["hasCurrentTheme"];
-	        this.templateCount = source["templateCount"];
-	        this.hasHookScript = source["hasHookScript"];
-	        this.templatesDir = source["templatesDir"];
-	        this.hooksDir = source["hooksDir"];
-	    }
-	}
 
 }
+
+export namespace omarchy {
 	
 	export class Capabilities {
 	    available: boolean;

@@ -3,6 +3,8 @@
 import {color} from '../models';
 import {theme} from '../models';
 import {main} from '../models';
+import {browsers} from '../models';
+import {harnesses} from '../models';
 import {favorites} from '../models';
 import {githubsource} from '../models';
 import {icontheme} from '../models';
@@ -61,11 +63,21 @@ export function GenerateGradient(arg1:string,arg2:string):Promise<any>;
 
 export function GeneratePaletteFromColor(arg1:string):Promise<any>;
 
+export function GetAetherDirStatus():Promise<main.AetherDirStatus>;
+
+export function GetCurrentThemePath():Promise<string>;
+
+export function GetDetectedBrowsers():Promise<browsers.DetectedBrowsers>;
+
+export function GetDetectedHarnesses():Promise<harnesses.DetectedHarnesses>;
+
 export function GetFavorites():Promise<Array<favorites.Favorite>>;
 
 export function GetFocusTab():Promise<string>;
 
 export function GetGitHubThumbnail(arg1:string):Promise<githubsource.ThumbnailResult>;
+
+export function GetHeadlessCLICommand():Promise<string>;
 
 export function GetIconThemePreview(arg1:string):Promise<icontheme.ThemePreview>;
 
@@ -82,6 +94,8 @@ export function GetReleaseStatus(arg1:string):Promise<Record<string, any>>;
 export function GetSettings():Promise<Record<string, any>>;
 
 export function GetTemplateColors():Promise<Record<string, Array<string>>>;
+
+export function GetTemplateVarNames():Promise<Array<string>>;
 
 export function GetThemeColors():Promise<Record<string, string>>;
 
@@ -115,6 +129,8 @@ export function ListGitHubImages(arg1:string):Promise<githubsource.ListContentsR
 
 export function ListInstalledIconThemes():Promise<Array<icontheme.ThemeSummary>>;
 
+export function ListUserTemplates():Promise<Array<string>>;
+
 export function LoadBlueprint(arg1:string):Promise<void>;
 
 export function LoadOmarchyThemes():Promise<Array<omarchy.Theme>>;
@@ -122,6 +138,8 @@ export function LoadOmarchyThemes():Promise<Array<omarchy.Theme>>;
 export function OpenExternalImportInEditor(arg1:string):Promise<void>;
 
 export function OpenFileDialog():Promise<string>;
+
+export function OpenFolderInExplorer(arg1:string):Promise<void>;
 
 export function PreviewExtractColors(arg1:string,arg2:boolean,arg3:string):Promise<any>;
 

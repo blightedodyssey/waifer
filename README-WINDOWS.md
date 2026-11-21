@@ -12,7 +12,7 @@ one.
 
 - Wallpaper picking, drag and drop, local scanning, wallhaven search, blur and
   image editing, GitHub wallpaper sources.
-- The full 16-color extraction pipeline (all 8 modes, all 12 fine-tuning
+- The full 16-color extraction pipeline (all 23 modes, all 12 fine-tuning
   sliders, light/dark palette anchoring), presets, blueprints, favorites,
   gradient/palette generators, WCAG contrast tools.
 - **System theme**: sets the Windows accent color, active/inactive title-bar

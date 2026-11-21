@@ -102,6 +102,22 @@ export function GeneratePaletteFromColor(arg1) {
   return window['go']['main']['App']['GeneratePaletteFromColor'](arg1);
 }
 
+export function GetAetherDirStatus() {
+  return window['go']['main']['App']['GetAetherDirStatus']();
+}
+
+export function GetCurrentThemePath() {
+  return window['go']['main']['App']['GetCurrentThemePath']();
+}
+
+export function GetDetectedBrowsers() {
+  return window['go']['main']['App']['GetDetectedBrowsers']();
+}
+
+export function GetDetectedHarnesses() {
+  return window['go']['main']['App']['GetDetectedHarnesses']();
+}
+
 export function GetFavorites() {
   return window['go']['main']['App']['GetFavorites']();
 }
@@ -112,6 +128,10 @@ export function GetFocusTab() {
 
 export function GetGitHubThumbnail(arg1) {
   return window['go']['main']['App']['GetGitHubThumbnail'](arg1);
+}
+
+export function GetHeadlessCLICommand() {
+  return window['go']['main']['App']['GetHeadlessCLICommand']();
 }
 
 export function GetIconThemePreview(arg1) {
@@ -144,6 +164,10 @@ export function GetSettings() {
 
 export function GetTemplateColors() {
   return window['go']['main']['App']['GetTemplateColors']();
+}
+
+export function GetTemplateVarNames() {
+  return window['go']['main']['App']['GetTemplateVarNames']();
 }
 
 export function GetThemeColors() {
@@ -210,6 +234,10 @@ export function ListInstalledIconThemes() {
   return window['go']['main']['App']['ListInstalledIconThemes']();
 }
 
+export function ListUserTemplates() {
+  return window['go']['main']['App']['ListUserTemplates']();
+}
+
 export function LoadBlueprint(arg1) {
   return window['go']['main']['App']['LoadBlueprint'](arg1);
 }
@@ -224,6 +252,10 @@ export function OpenExternalImportInEditor(arg1) {
 
 export function OpenFileDialog() {
   return window['go']['main']['App']['OpenFileDialog']();
+}
+
+export function OpenFolderInExplorer(arg1) {
+  return window['go']['main']['App']['OpenFolderInExplorer'](arg1);
 }
 
 export function PreviewExtractColors(arg1, arg2, arg3) {
