@@ -48,6 +48,45 @@ func TestRenderWebUICSSFallsBackWithoutDarkBg(t *testing.T) {
 	}
 }
 
+func TestRenderWebUIManifest(t *testing.T) {
+	first := RenderWebUIManifest()
+	second := RenderWebUIManifest()
+	if first != second {
+		t.Errorf("manifest generation is not deterministic:\nfirst:\n%s\nsecond:\n%s", first, second)
+	}
+	for _, want := range []string{
+		`"manifest_version": 3`,
+		`"name": "Waifer WebUI Theme Sync"`,
+		`"version": "1.1.0"`,
+		`"content_scripts"`,
+		`"js": [`,
+		`"content.js"`,
+		`"css": [`,
+		`"waifer-webui.css"`,
+		`"run_at": "document_start"`,
+		`https://gemini.google.com/*`,
+		`"web_accessible_resources"`,
+	} {
+		if !strings.Contains(first, want) {
+			t.Errorf("manifest missing %q:\n%s", want, first)
+		}
+	}
+}
+
+func TestWebUIContentScriptHotSwapsWithoutReload(t *testing.T) {
+	for _, want := range []string{
+		`chrome.runtime.getURL("waifer-webui.css")`,
+		`cache: "no-store"`,
+		"1500",
+		`"waifer-webui-live"`,
+		"setInterval",
+	} {
+		if !strings.Contains(webUIContentScript, want) {
+			t.Errorf("content script missing %q:\n%s", want, webUIContentScript)
+		}
+	}
+}
+
 func TestWriteWebUIExtension(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("LOCALAPPDATA", tempDir)
@@ -67,8 +106,9 @@ func TestWriteWebUIExtension(t *testing.T) {
 	if err := os.MkdirAll(extDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	manifest := `{"name":"Waifer WebUI Theme Sync","version":"1.0.0"}`
-	if err := os.WriteFile(filepath.Join(extDir, "manifest.json"), []byte(manifest), 0o644); err != nil {
+	// A stale hand-written manifest from an older extension version must be
+	// replaced by the generated one.
+	if err := os.WriteFile(filepath.Join(extDir, "manifest.json"), []byte(`{"name":"stale"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -82,33 +122,51 @@ func TestWriteWebUIExtension(t *testing.T) {
 		t.Fatalf("writeWebUIExtension: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(extDir, webUICSSFile))
-	if err != nil {
-		t.Fatalf("read waifer-webui.css: %v", err)
-	}
-	if !strings.Contains(string(data), "--waifer-bg: #1e1e2e;") {
-		t.Errorf("waifer-webui.css missing background var:\n%s", data)
-	}
-
-	// The manifest is user-managed: it must be left byte-identical.
-	gotManifest, err := os.ReadFile(filepath.Join(extDir, "manifest.json"))
+	manifest, err := os.ReadFile(filepath.Join(extDir, "manifest.json"))
 	if err != nil {
 		t.Fatalf("read manifest: %v", err)
 	}
-	if string(gotManifest) != manifest {
-		t.Errorf("manifest.json was modified:\n%s", gotManifest)
+	if string(manifest) != RenderWebUIManifest() {
+		t.Errorf("manifest.json does not match the generated manifest:\n%s", manifest)
 	}
 
-	// Atomic write leaves no .tmp / backup leftovers.
+	content, err := os.ReadFile(filepath.Join(extDir, webUIContentFile))
+	if err != nil {
+		t.Fatalf("read content.js: %v", err)
+	}
+	if string(content) != webUIContentScript {
+		t.Errorf("content.js does not match the generated watcher:\n%s", content)
+	}
+
+	css, err := os.ReadFile(filepath.Join(extDir, webUICSSFile))
+	if err != nil {
+		t.Fatalf("read waifer-webui.css: %v", err)
+	}
+	if !strings.Contains(string(css), "--waifer-bg: #1e1e2e;") {
+		t.Errorf("waifer-webui.css missing background var:\n%s", css)
+	}
+
+	// Re-applying must be byte-identical (no manifest churn for a loaded
+	// unpacked extension).
+	before, _ := os.ReadFile(filepath.Join(extDir, "manifest.json"))
+	if err := writeWebUIExtension(vars); err != nil {
+		t.Fatalf("second writeWebUIExtension: %v", err)
+	}
+	after, _ := os.ReadFile(filepath.Join(extDir, "manifest.json"))
+	if string(before) != string(after) {
+		t.Errorf("second apply changed manifest.json")
+	}
+
+	// Atomic writes leave exactly the three owned files, no .tmp leftovers.
 	entries, err := os.ReadDir(extDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 2 {
+	if len(entries) != 3 {
 		names := make([]string, 0, len(entries))
 		for _, e := range entries {
 			names = append(names, e.Name())
 		}
-		t.Errorf("extension dir should contain only manifest.json and waifer-webui.css, got %v", names)
+		t.Errorf("extension dir should contain exactly manifest.json, content.js and waifer-webui.css, got %v", names)
 	}
 }
