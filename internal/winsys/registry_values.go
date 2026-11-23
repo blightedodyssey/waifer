@@ -1,4 +1,4 @@
-package winsys
+﻿package winsys
 
 import (
 	"fmt"
@@ -180,7 +180,7 @@ func systemThemeValues(vars map[string]string, lightMode bool) ([]registryValue,
 		values = append(values, accentValues...)
 	}
 
-	// Explorer AccentPalette — 32-byte RGBA gradient used by native Win11 shell.
+	// Explorer AccentPalette â€” 32-byte RGBA gradient used by native Win11 shell.
 	accentPalette := buildAccentPalette(vars)
 	if len(accentPalette) > 0 {
 		values = append(values, registryValue{
@@ -252,8 +252,8 @@ func hexToRGBSpace(hex string) string {
 // buildAccentPalette creates the 32-byte RGBA gradient that Windows 11 Explorer
 // uses for native shell accent coloring (Start button glow, taskbar peek,
 // notification bubbles, etc.).  The palette has 8 slots (4 bytes each:
-// B G R A).  Slots 0–2 are light tints, slot 3 is the primary accent,
-// slots 4–7 are progressively darker shades.
+// B G R A).  Slots 0â€“2 are light tints, slot 3 is the primary accent,
+// slots 4â€“7 are progressively darker shades.
 func buildAccentPalette(vars map[string]string) []byte {
 	accent := normalizeHex(vars["accent"])
 	if accent == "" {
@@ -268,21 +268,21 @@ func buildAccentPalette(vars map[string]string) []byte {
 	palette := make([]byte, 0, 32)
 	alpha := byte(0xFF)
 
-	// Slot 0 — lightest tint (80% white mix)
+	// Slot 0 â€” lightest tint (80% white mix)
 	palette = append(palette, mix(b, 255, 0.80), mix(g, 255, 0.80), mix(r, 255, 0.80), alpha)
-	// Slot 1 — lighter tint (50% white mix)
+	// Slot 1 â€” lighter tint (50% white mix)
 	palette = append(palette, mix(b, 255, 0.50), mix(g, 255, 0.50), mix(r, 255, 0.50), alpha)
-	// Slot 2 — light tint (25% white mix)
+	// Slot 2 â€” light tint (25% white mix)
 	palette = append(palette, mix(b, 255, 0.25), mix(g, 255, 0.25), mix(r, 255, 0.25), alpha)
-	// Slot 3 — primary accent (original color)
+	// Slot 3 â€” primary accent (original color)
 	palette = append(palette, b, g, r, alpha)
-	// Slot 4 — dark shade (15% black mix)
+	// Slot 4 â€” dark shade (15% black mix)
 	palette = append(palette, mix(b, 0, 0.15), mix(g, 0, 0.15), mix(r, 0, 0.15), alpha)
-	// Slot 5 — darker shade (30% black mix)
+	// Slot 5 â€” darker shade (30% black mix)
 	palette = append(palette, mix(b, 0, 0.30), mix(g, 0, 0.30), mix(r, 0, 0.30), alpha)
-	// Slot 6 — even darker (45% black mix)
+	// Slot 6 â€” even darker (45% black mix)
 	palette = append(palette, mix(b, 0, 0.45), mix(g, 0, 0.45), mix(r, 0, 0.45), alpha)
-	// Slot 7 — darkest (60% black mix)
+	// Slot 7 â€” darkest (60% black mix)
 	palette = append(palette, mix(b, 0, 0.60), mix(g, 0, 0.60), mix(r, 0, 0.60), alpha)
 
 	return palette

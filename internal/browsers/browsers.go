@@ -104,6 +104,15 @@ func ApplyTheme(vars map[string]string) (applied []string, warnings []string) {
 	} else {
 		applied = append(applied, "browser-extension")
 	}
+
+	// Refresh the WebUI Theme Sync extension (gemini.google.com content
+	// script). Skipped with a non-fatal warning when the extension is not
+	// loaded in Chrome.
+	if err := writeWebUIExtension(vars); err != nil {
+		warnings = append(warnings, fmt.Sprintf("webui extension: %v", err))
+	} else {
+		applied = append(applied, "webui-extension")
+	}
 	
 	// Firefox
 	if prof, err := findFirefoxProfile(); err == nil && prof != "" {

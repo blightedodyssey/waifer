@@ -1,4 +1,4 @@
-//go:build windows
+﻿//go:build windows
 
 package winsys
 
@@ -21,7 +21,7 @@ const (
 	glazeWMGapsKey    = "gaps"
 	// GlazeWM renders a fixed-width DWM border; the visible "2px" separation
 	// between tiled panes comes from gaps, so both are pinned to 2px.
-	glazeWMGapPx = 2
+	glazeWMGapPx = 3
 )
 
 // ApplyGlazeWMTheme updates the focused/unfocused border colors in
@@ -132,7 +132,7 @@ func windowEffectsBlock(accent, other string) []string {
 // rejects bare integers ("data did not match any variant ... at line 11
 // column 3"), so every value is emitted as a quoted pixel string ("2px").
 func gapsBlock(text []string) []string {
-	top := 50
+	top := 3
 	if block := topLevelBlock(text, glazeWMGapsKey); block != nil {
 		if v, ok := intValueInBlock(block, "top"); ok {
 			top = v

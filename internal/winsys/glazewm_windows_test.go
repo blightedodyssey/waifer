@@ -1,4 +1,4 @@
-//go:build windows
+﻿//go:build windows
 
 package winsys
 
@@ -111,7 +111,7 @@ func TestApplyGlazeWMThemeWritesV3WindowEffects(t *testing.T) {
 	}
 	// GlazeWM v3.10+ rejects bare integers (LengthValueDe enum), so gaps are
 	// emitted as quoted pixel strings.
-	for _, want := range []string{`inner_gap: "2px"`, `top: "50px"`, `right: "2px"`, `bottom: "2px"`, `left: "2px"`} {
+	for _, want := range []string{`inner_gap: "3px"`, `top: "3px"`, `right: "3px"`, `bottom: "3px"`, `left: "3px"`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("gaps missing %q\n%s", want, got)
 		}
