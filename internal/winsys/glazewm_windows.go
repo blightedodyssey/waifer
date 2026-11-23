@@ -19,8 +19,8 @@ const (
 	glazeWMEffectsKey = "window_effects"
 	glazeWMRulesKey   = "window_rules"
 	glazeWMGapsKey    = "gaps"
-	// GlazeWM renders a fixed-width DWM border; the visible "2px" separation
-	// between tiled panes comes from gaps, so both are pinned to 2px.
+	// GlazeWM renders a fixed-width DWM border; the visible separation
+	// between tiled panes comes from gaps, so both are pinned to 3px.
 	glazeWMGapPx = 3
 )
 
@@ -125,8 +125,9 @@ func windowEffectsBlock(accent, other string) []string {
 }
 
 // gapsBlock rewrites the v2 `inner_gaps`/`outer_gaps` keys (silently ignored by
-// GlazeWM v3) into the v3 `inner_gap`/`outer_gap` schema and pins the tiling gap
-// to 2px. The top outer gap is preserved because it holds the status-bar offset.
+// GlazeWM v3) into the v3 `inner_gap`/`outer_gap` schema and pins the tiling
+// gap to glazeWMGapPx. The top outer gap is preserved because it holds the
+// status-bar offset.
 //
 // GlazeWM v3.10+ deserialises gaps with an untagged LengthValueDe enum that
 // rejects bare integers ("data did not match any variant ... at line 11

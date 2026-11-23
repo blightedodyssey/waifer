@@ -105,13 +105,14 @@ func TestApplyGlazeWMThemeWritesV3WindowEffects(t *testing.T) {
 		}
 	}
 
-	// Gaps are migrated to the v3 schema and pinned to 2px, top offset kept.
+	// Gaps are migrated to the v3 schema and pinned to 3px; the YASB status
+	// bar top offset (50px) is preserved from the existing config.
 	if strings.Contains(got, "inner_gaps:") || strings.Contains(got, "outer_gaps:") {
 		t.Errorf("v2 gap keys survived\n%s", got)
 	}
 	// GlazeWM v3.10+ rejects bare integers (LengthValueDe enum), so gaps are
 	// emitted as quoted pixel strings.
-	for _, want := range []string{`inner_gap: "3px"`, `top: "3px"`, `right: "3px"`, `bottom: "3px"`, `left: "3px"`} {
+	for _, want := range []string{`inner_gap: "3px"`, `top: "50px"`, `right: "3px"`, `bottom: "3px"`, `left: "3px"`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("gaps missing %q\n%s", want, got)
 		}
@@ -181,6 +182,11 @@ func TestApplyGlazeWMThemeInsertsWhenSectionMissing(t *testing.T) {
 	// other_windows falls back to the background when dark_bg is absent.
 	if !strings.Contains(got, `color: "#7f5af0"`) {
 		t.Errorf("accent color missing\n%s", got)
+	}
+	// With no gaps block in the config, the top offset defaults to the 3px
+	// tiling gap.
+	if !strings.Contains(got, `top: "3px"`) {
+		t.Errorf("default top gap missing\n%s", got)
 	}
 }
 
