@@ -27,6 +27,10 @@ func (a *App) openDirectoryDialog(opts wailsrt.OpenDialogOptions) (string, error
 	return wailsrt.OpenDirectoryDialog(a.ctx, opts)
 }
 
+func (a *App) saveFileDialog(opts wailsrt.SaveDialogOptions) (string, error) {
+	return wailsrt.SaveFileDialog(a.ctx, opts)
+}
+
 // portalOpenFile reports ok=false when the portal could not be used, so the
 // caller should show the Wails dialog instead. A cancelled pick is ok=true
 // with an empty path.

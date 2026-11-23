@@ -1,4 +1,4 @@
-// Package browsers detects installed browsers and injects Aether themes into
+// Package browsers detects installed browsers and injects Waifer themes into
 // their profiles.  Chromium-family browsers get an unpacked extension plus
 // Preferences patching; Firefox gets userChrome.css / userContent.css.
 package browsers
@@ -33,14 +33,14 @@ type DetectedBrowsers struct {
 	HasExtension   bool          `json:"hasExtension"`
 }
 
-const extensionName = "Aether Live Theme"
+const extensionName = "Waifer Live Theme"
 
 // ExtensionDir returns the directory where the unpacked Chromium extension
 // is generated.
 func ExtensionDir() string {
 	if runtime.GOOS == "windows" {
 		if local := os.Getenv("LOCALAPPDATA"); local != "" {
-			return filepath.Join(local, "Aether", "browser-theme")
+			return filepath.Join(local, "Waifer", "browser-theme")
 		}
 	}
 	return filepath.Join(os.TempDir(), "aether-browser-theme")

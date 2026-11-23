@@ -220,6 +220,13 @@ func (i *Injector) nextSlot(cliPath string) string {
 
 func (i *Injector) scheduleCleanup(path, slot string) {
 	time.AfterFunc(i.cleanupDelay, func() {
+		// Take the write lock so this cannot interleave with injectNow. Without
+		// it, a timer scheduled by the previous apply can land between the new
+		// theme write and the lastSlot assignment, see a stale active slot, and
+		// delete the file that just became active.
+		i.writeMu.Lock()
+		defer i.writeMu.Unlock()
+
 		i.mu.Lock()
 		active := i.lastSlot
 		i.mu.Unlock()

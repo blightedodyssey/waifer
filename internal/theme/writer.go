@@ -12,9 +12,9 @@ import (
 	"sort"
 	"strings"
 
+	"aether/internal/aetherdir"
 	"aether/internal/color"
 	"aether/internal/icontheme"
-	"aether/internal/aetherdir"
 	"aether/internal/omarchy"
 	"aether/internal/platform"
 	"aether/internal/template"
@@ -92,58 +92,79 @@ type Settings struct {
 	ExcludedApps         map[string]bool `json:"excludedApps,omitempty"`
 }
 
-// includesApp supports explicit opt-in targets while preserving callers that
-// still use the legacy special flags and exclusion map.
+// includesApp combines three sources of truth, in order: explicit exclusions,
+// explicit inclusions, then presence detection. Vanilla native Windows theming
+// always comes first; optional integrations that are not installed are skipped
+// silently (no warnings or errors) unless IncludedApps forces them on.
 func (s Settings) includesApp(app string) bool {
-	// Windows 11 shell, browser, bar/WM, and AI harness targets default to off
-	// (opt-in) because they modify external application state; only apply if the
-	// user explicitly enabled them.
-	optInTargets := map[string]bool{
-		"win11-start-menu":     true,
-		"win11-notifications":  true,
-		"win11-taskbar":        true,
-		"win11-file-explorer":  true,
-		"browser":              true,
-		"yasb":                 true,
-		"glazewm":              true,
-		"opencode":             true,
-		"hermes":               true,
-		"pi":                   true,
-		"claude-code":          true,
-		"jan":                  true,
-		"aider":                true,
-	}
-	if optInTargets[app] {
-		return s.IncludedApps[app]
-	}
-
-	// Windows Terminal is the primary terminal target on Windows, so it is on
-	// by default there unless the user explicitly turned it off.
-	if app == "system" && runtime.GOOS == "windows" {
-		if enabled, ok := s.IncludedApps[app]; ok {
-			return enabled
-		}
-		return true
-	}
-	if app == "windows-terminal" && runtime.GOOS == "windows" {
-		if enabled, ok := s.IncludedApps[app]; ok {
-			return enabled
-		}
-		return true
-	}
-	if app == "icons" {
-		if enabled, ok := s.IncludedApps[app]; ok {
-			return enabled
-		}
-		return !s.ExcludedApps[app]
-	}
-	if s.IncludedApps != nil {
-		return s.IncludedApps[app]
-	}
+	// An explicit exclusion always wins, including for system/terminal.
 	if s.ExcludedApps[app] {
 		return false
 	}
 
+	// Vanilla Windows native theming and the built-in terminal are available
+	// on every Windows installation, so they stay on unless turned off.
+	if app == "system" || app == "windows-terminal" {
+		if enabled, ok := s.IncludedApps[app]; ok {
+			return enabled
+		}
+		return true
+	}
+
+	// Presence-first targets: shell stylers, browser, bar/WM and AI harnesses.
+	// An explicit IncludedApps entry (true or false) is the user's choice;
+	// otherwise winsys.Detect() decides from the local installation.
+	optInTargets := map[string]bool{
+		"win11-start-menu":    true,
+		"win11-notifications": true,
+		"win11-taskbar":       true,
+		"win11-file-explorer": true,
+		"browser":             true,
+		"yasb":                true,
+		"glazewm":             true,
+		"windhawk":            true,
+		"discord":             true,
+		"vencord":             true,
+		"opencode":            true,
+		"hermes":              true,
+		"pi":                  true,
+		"claude-code":         true,
+		"jan":                 true,
+		"aider":               true,
+	}
+	if optInTargets[app] {
+		if enabled, ok := s.IncludedApps[app]; ok {
+			return enabled
+		}
+		return winsys.Detect()[app]
+	}
+
+	if app == "icons" {
+		if enabled, ok := s.IncludedApps[app]; ok {
+			return enabled
+		}
+		return true
+	}
+	if enabled, ok := s.IncludedApps[app]; ok {
+		return enabled
+	}
+	// A caller-supplied include map is authoritative for ordinary template
+	// targets; legacy editor flags remain usable when there is no entry for
+	// that editor.
+	if s.IncludedApps != nil {
+		switch app {
+		case "zed":
+			return s.IncludeZed
+		case "vscode":
+			return s.IncludeVscode
+		case "neovim":
+			return s.IncludeNeovim
+		default:
+			return false
+		}
+	}
+
+	// Legacy editor flags still apply when there is no IncludedApps map.
 	switch app {
 	case "zed":
 		return s.IncludeZed
@@ -152,7 +173,7 @@ func (s Settings) includesApp(app string) bool {
 	case "neovim":
 		return s.IncludeNeovim
 	default:
-		return !s.ExcludedApps[app]
+		return true
 	}
 }
 
@@ -556,6 +577,12 @@ func (w *Writer) ApplyTheme(state *ThemeState, settings Settings) (*ApplyResult,
 	// Phase 5: Write canonical current theme state, render user templates, run hook.
 	if err := writeAetherCurrentState(variables, state.WallpaperPath); err != nil {
 		log.Printf("[ApplyTheme] aether current state error: %v", err)
+		winResult.Warnings = append(winResult.Warnings, err.Error())
+	}
+	// Publish the standardized live exports for third-party consumers. A failed
+	// export is non-fatal: the theme has already been applied successfully.
+	if err := aetherdir.WriteLiveExports(variables); err != nil {
+		log.Printf("[ApplyTheme] live exports warning: %v", err)
 		winResult.Warnings = append(winResult.Warnings, err.Error())
 	}
 

@@ -105,19 +105,7 @@ func ImportBase16(filePath string) (*Blueprint, error) {
 		for i := 0; i < 16; i++ {
 			key := fmt.Sprintf("base%02X:", i)
 			if strings.HasPrefix(line, key) {
-				val := parseYAMLValue(strings.TrimPrefix(line, key))
-				// Strip inline comments: "090300" #  ---- → 090300
-				if idx := strings.Index(val, "#"); idx > 0 {
-					before := val[:idx]
-					if strings.TrimSpace(before) != "" {
-						val = strings.TrimSpace(before)
-					}
-				}
-				val = strings.Trim(val, `"' `)
-				if val != "" && !strings.HasPrefix(val, "#") {
-					val = "#" + val
-				}
-				base[i] = val
+				base[i] = normalizeImportedHex(strings.TrimPrefix(line, key))
 			}
 		}
 	}
@@ -128,24 +116,7 @@ func ImportBase16(filePath string) (*Blueprint, error) {
 	}
 
 	// Map base16 to ANSI 16-colour palette
-	colors := [16]string{
-		base[0x00], // 0  black / background
-		base[0x08], // 1  red
-		base[0x0B], // 2  green
-		base[0x0A], // 3  yellow
-		base[0x0D], // 4  blue
-		base[0x0E], // 5  magenta
-		base[0x0C], // 6  cyan
-		base[0x05], // 7  white / foreground
-		base[0x03], // 8  bright black
-		base[0x08], // 9  bright red
-		base[0x0B], // 10 bright green
-		base[0x0A], // 11 bright yellow
-		base[0x0D], // 12 bright blue
-		base[0x0E], // 13 bright magenta
-		base[0x0C], // 14 bright cyan
-		base[0x07], // 15 bright white
-	}
+	colors := base16ANSIColors(base)
 
 	name := scheme
 	if name == "" {
@@ -165,6 +136,276 @@ func ImportBase16(filePath string) (*Blueprint, error) {
 	}
 
 	return bp, nil
+}
+
+// base16ANSIColors maps the canonical base00-base0F slots onto the ANSI
+// 16-colour palette shared by Base16 and Base24 imports.
+func base16ANSIColors(base map[int]string) [16]string {
+	return [16]string{
+		base[0x00], // 0  black / background
+		base[0x08], // 1  red
+		base[0x0B], // 2  green
+		base[0x0A], // 3  yellow
+		base[0x0D], // 4  blue
+		base[0x0E], // 5  magenta
+		base[0x0C], // 6  cyan
+		base[0x05], // 7  white / foreground
+		base[0x03], // 8  bright black
+		base[0x08], // 9  bright red
+		base[0x0B], // 10 bright green
+		base[0x0A], // 11 bright yellow
+		base[0x0D], // 12 bright blue
+		base[0x0E], // 13 bright magenta
+		base[0x0C], // 14 bright cyan
+		base[0x07], // 15 bright white
+	}
+}
+
+// normalizeImportedHex strips YAML/JSON quoting and inline comments and adds a
+// leading '#' when the value is a bare hex triplet/sixth. Empty values are
+// preserved so optional extended slots stay distinguishable from bad hex.
+func normalizeImportedHex(raw string) string {
+	val := parseYAMLValue(raw)
+	// Strip inline comments: "090300" # ---- → 090300
+	if idx := strings.Index(val, "#"); idx > 0 {
+		before := val[:idx]
+		if strings.TrimSpace(before) != "" {
+			val = strings.TrimSpace(before)
+		}
+	}
+	val = strings.Trim(val, `"' `)
+	if val != "" && !strings.HasPrefix(val, "#") {
+		val = "#" + val
+	}
+	return val
+}
+
+// ImportBase24 parses a Base24 YAML file into a blueprint. Base24 extends
+// Base16 with base10-base17; those extra slots are preserved as extended
+// colours while base00-base0F map onto ANSI exactly as in ImportBase16.
+func ImportBase24(filePath string) (*Blueprint, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("read file: %w", err)
+	}
+
+	base := make(map[int]string, 24)
+	extended := make(map[string]string, 8)
+	var scheme, author string
+
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || (strings.HasPrefix(line, "#") && !strings.Contains(line, ":")) {
+			continue
+		}
+		if strings.HasPrefix(line, "scheme:") {
+			scheme = parseYAMLValue(strings.TrimPrefix(line, "scheme:"))
+		}
+		if strings.HasPrefix(line, "author:") {
+			author = parseYAMLValue(strings.TrimPrefix(line, "author:"))
+		}
+
+		for i := 0; i < 24; i++ {
+			key := fmt.Sprintf("base%02X:", i)
+			// EqualFold accepts both base0A and base0a spellings.
+			if len(line) < len(key) || !strings.EqualFold(line[:len(key)], key) {
+				continue
+			}
+			val := normalizeImportedHex(line[len(key):])
+			base[i] = val
+			if i >= 0x10 {
+				extended[fmt.Sprintf("base%02X", i)] = val
+			}
+		}
+	}
+	_ = author
+
+	// Only base00-base0F count towards the minimum: extended slots alone are
+	// not a usable ANSI palette.
+	baseCount := 0
+	for i := 0; i < 16; i++ {
+		if _, ok := base[i]; ok {
+			baseCount++
+		}
+	}
+	if baseCount < 8 {
+		return nil, fmt.Errorf("not enough colors found (got %d)", baseCount)
+	}
+
+	name := scheme
+	if name == "" {
+		name = strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
+	}
+	colors := base16ANSIColors(base)
+	bp := &Blueprint{
+		Name: name,
+		Palette: PaletteData{
+			Colors:         colors[:],
+			ExtendedColors: extended,
+		},
+		Timestamp: time.Now().UnixMilli(),
+	}
+	if err := validateBlueprint(bp); err != nil {
+		return nil, fmt.Errorf("validate Base24 scheme: %w", err)
+	}
+	return bp, nil
+}
+
+// pywalDocument covers both the nested Wallust/pywal colour file shape and the
+// flat legacy shape; flat color0-color15 keys are read separately.
+type pywalDocument struct {
+	Colors     map[string]string `json:"colors"`
+	Special    map[string]string `json:"special"`
+	Background string            `json:"background"`
+	Foreground string            `json:"foreground"`
+	Cursor     string            `json:"cursor"`
+	Accent     string            `json:"accent"`
+	Mode       string            `json:"mode"`
+	Wallust    struct {
+		Mode string `json:"mode"`
+	} `json:"wallust"`
+	Pywal struct {
+		Mode string `json:"mode"`
+	} `json:"pywal"`
+}
+
+// ImportPywal parses a pywal/Wallust colors.json into a blueprint. The nested
+// {"colors": ..., "special": ...} and flat {color0: ..., background: ...}
+// layouts are both accepted.
+func ImportPywal(filePath string) (*Blueprint, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("read file: %w", err)
+	}
+
+	var doc pywalDocument
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return nil, fmt.Errorf("parse colors.json: %w", err)
+	}
+	var flat map[string]json.RawMessage
+	if err := json.Unmarshal(data, &flat); err != nil {
+		return nil, fmt.Errorf("parse colors.json: %w", err)
+	}
+
+	lookupColor := func(key string) string {
+		if value, ok := doc.Colors[key]; ok {
+			return value
+		}
+		if raw, ok := flat[key]; ok {
+			var value string
+			if json.Unmarshal(raw, &value) == nil {
+				return value
+			}
+		}
+		return ""
+	}
+
+	colors := make([]string, 16)
+	found := 0
+	for i := range colors {
+		colors[i] = normalizeImportedHex(lookupColor(fmt.Sprintf("color%d", i)))
+		if colors[i] != "" {
+			found++
+		}
+	}
+	if found < 16 {
+		return nil, fmt.Errorf("not enough colors found (got %d of 16)", found)
+	}
+
+	extended := make(map[string]string, 4)
+	for _, item := range []struct{ key, value string }{
+		{"background", doc.Special["background"]},
+		{"foreground", doc.Special["foreground"]},
+		{"cursor", doc.Special["cursor"]},
+		{"accent", doc.Special["accent"]},
+	} {
+		if item.value == "" {
+			switch item.key {
+			case "background":
+				item.value = doc.Background
+			case "foreground":
+				item.value = doc.Foreground
+			case "cursor":
+				item.value = doc.Cursor
+			case "accent":
+				item.value = doc.Accent
+			}
+		}
+		if value := normalizeImportedHex(item.value); value != "" {
+			extended[item.key] = value
+		}
+	}
+
+	mode := doc.Wallust.Mode
+	if mode == "" {
+		mode = doc.Pywal.Mode
+	}
+	if mode == "" {
+		mode = doc.Mode
+	}
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode != "light" && mode != "dark" {
+		mode = ""
+	}
+
+	bp := &Blueprint{
+		Name: strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath)),
+		Palette: PaletteData{
+			Colors:         colors,
+			ExtendedColors: extended,
+			Mode:           mode,
+			LightMode:      mode == "light",
+		},
+		Timestamp: time.Now().UnixMilli(),
+	}
+	if err := validateBlueprint(bp); err != nil {
+		return nil, fmt.Errorf("validate pywal palette: %w", err)
+	}
+	return bp, nil
+}
+
+// ImportAuto detects the theme format from the file extension (and YAML key
+// presence) and dispatches to the matching importer.
+func ImportAuto(filePath string) (*Blueprint, error) {
+	switch ext := strings.ToLower(filepath.Ext(filePath)); ext {
+	case ".json":
+		bp, pyErr := ImportPywal(filePath)
+		if pyErr == nil {
+			return bp, nil
+		}
+		bp, jsonErr := ImportJSON(filePath)
+		if jsonErr == nil {
+			return bp, nil
+		}
+		return nil, fmt.Errorf("import as pywal colors: %v; import as blueprint JSON: %w", pyErr, jsonErr)
+	case ".yaml", ".yml":
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return nil, fmt.Errorf("read file: %w", err)
+		}
+		if hasBase24Keys(string(data)) {
+			return ImportBase24(filePath)
+		}
+		return ImportBase16(filePath)
+	case ".toml":
+		return ImportColorsToml(filePath)
+	default:
+		return nil, fmt.Errorf("unsupported theme import format %q", ext)
+	}
+}
+
+// hasBase24Keys reports whether a YAML document declares any base10-base17 slot.
+func hasBase24Keys(content string) bool {
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		for i := 0x10; i <= 0x17; i++ {
+			key := fmt.Sprintf("base%02X:", i)
+			if len(line) >= len(key) && strings.EqualFold(line[:len(key)], key) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ImportColorsTomlFromURL downloads a colors.toml file into the web-import

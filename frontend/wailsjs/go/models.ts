@@ -87,6 +87,29 @@ export namespace browsers {
 
 }
 
+export namespace bundle {
+	
+	export class Result {
+	    dir: string;
+	    colors_toml: string;
+	    wallpaper?: string;
+	    custom_css?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Result(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dir = source["dir"];
+	        this.colors_toml = source["colors_toml"];
+	        this.wallpaper = source["wallpaper"];
+	        this.custom_css = source["custom_css"];
+	    }
+	}
+
+}
+
 export namespace color {
 	
 	export class Adjustments {
@@ -907,6 +930,76 @@ export namespace omarchy {
 
 }
 
+export namespace scheduler {
+	
+	export class Settings {
+	    enabled: boolean;
+	    light_blueprint: string;
+	    dark_blueprint: string;
+	    mode: string;
+	    latitude?: number;
+	    longitude?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Settings(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.light_blueprint = source["light_blueprint"];
+	        this.dark_blueprint = source["dark_blueprint"];
+	        this.mode = source["mode"];
+	        this.latitude = source["latitude"];
+	        this.longitude = source["longitude"];
+	    }
+	}
+
+}
+
+export namespace snapshot {
+	
+	export class Info {
+	    id: string;
+	    label: string;
+	    created_at: time.Time;
+	    files: string[];
+	    windhawk_mods?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Info(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	        this.created_at = this.convertValues(source["created_at"], time.Time);
+	        this.files = source["files"];
+	        this.windhawk_mods = source["windhawk_mods"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace template {
 	
 	export class ColorRoles {
@@ -1063,6 +1156,23 @@ export namespace theme {
 		    }
 		    return a;
 		}
+	}
+
+}
+
+export namespace time {
+	
+	export class Time {
+	
+	
+	    static createFrom(source: any = {}) {
+	        return new Time(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	
+	    }
 	}
 
 }

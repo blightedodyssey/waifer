@@ -4,7 +4,10 @@
     import {showToast, getActiveTab, setActiveTab} from '$lib/stores/ui.svelte';
     import {getIsWindows} from '$lib/stores/platform.svelte';
     import Switch from '$lib/components/shared/Switch.svelte';
-    import type {main} from '../../../../wailsjs/go/models';
+    import type {
+        main,
+        scheduler as schedulerModels,
+    } from '../../../../wailsjs/go/models';
 
     const appTargets = [
         {key: 'system', label: 'Windows System Theme'},
@@ -41,6 +44,55 @@
     let cliCommand = $state('');
     let isWindows = $state(false);
 
+    // Light/Dark scheduler — auto day/night blueprint switching.
+    let scheduler = $state<schedulerModels.Settings>({
+        enabled: false,
+        light_blueprint: '',
+        dark_blueprint: '',
+        mode: 'system',
+    });
+    let schedulerLoaded = $state(false);
+    let schedulerBusy = $state(false);
+
+    async function loadScheduler() {
+        try {
+            const {SchedulerLoad, ListBlueprints} = await import(
+                '../../../../wailsjs/go/main/App'
+            );
+            const [settings, bps] = await Promise.all([
+                SchedulerLoad(),
+                ListBlueprints(),
+            ]);
+            scheduler = {...(settings ?? {})} as unknown as schedulerModels.Settings;
+            blueprintNames = (bps ?? [])
+                .map((bp: Record<string, any>) => String(bp?.name ?? ''))
+                .filter(Boolean);
+            schedulerLoaded = true;
+        } catch {
+            schedulerLoaded = false;
+        }
+    }
+
+    async function saveScheduler() {
+        schedulerBusy = true;
+        try {
+            const {SchedulerSave} = await import(
+                '../../../../wailsjs/go/main/App'
+            );
+            await SchedulerSave({
+                enabled: !!scheduler.enabled,
+                light_blueprint: scheduler.light_blueprint ?? '',
+                dark_blueprint: scheduler.dark_blueprint ?? '',
+                mode: scheduler.mode === 'schedule' ? 'schedule' : 'system',
+            });
+            showToast('Scheduler settings saved');
+        } catch (e: any) {
+            showToast('Scheduler save failed: ' + (e?.message || ''));
+        } finally {
+            schedulerBusy = false;
+        }
+    }
+
     onMount(async () => {
         isWindows = getIsWindows();
         try {
@@ -51,6 +103,7 @@
             aetherDirStatus = status;
             cliCommand = await GetHeadlessCLICommand() as string;
         } catch {}
+        loadScheduler();
     });
 
     async function chooseWallpaperFolder() {
@@ -168,6 +221,86 @@
                     {choosingFolder ? 'Choosing…' : 'Choose folder…'}
                 </button>
             </div>
+        </section>
+
+        <section aria-labelledby="scheduler-heading" class="mt-9">
+            <h2
+                id="scheduler-heading"
+                class="text-fg-dimmed mb-2.5 text-[10px] font-semibold uppercase tracking-[0.14em]"
+            >
+                Light/Dark scheduler
+            </h2>
+            {#if schedulerLoaded}
+                <div
+                    class="border-border bg-bg-secondary grid gap-3 border p-[18px]"
+                >
+                    <div class="flex items-center justify-between gap-4">
+                        <div class="min-w-0">
+                            <div
+                                class="text-fg-primary text-[13px] font-semibold"
+                            >
+                                Automatic day/night switching
+                            </div>
+                            <p class="text-fg-dimmed mt-[3px] text-[12px]">
+                                Switch between a light and a dark blueprint
+                                automatically. 06:00–18:00 local time is light.
+                            </p>
+                        </div>
+                        <Switch
+                            checked={!!scheduler.enabled}
+                            onchange={v => {
+                                scheduler.enabled = v;
+                            }}
+                            size="sm"
+                        />
+                    </div>
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <label class="text-fg-secondary text-[12px]">
+                            Light blueprint
+                            <select
+                                class="bg-bg-primary border-border text-fg-primary mt-1 w-full border px-2 py-1.5 text-[12px]"
+                                bind:value={scheduler.light_blueprint}
+                            >
+                                <option value="">None</option>
+                                {#each blueprintNames as name}
+                                    <option value={name}>{name}</option>
+                                {/each}
+                            </select>
+                        </label>
+                        <label class="text-fg-secondary text-[12px]">
+                            Dark blueprint
+                            <select
+                                class="bg-bg-primary border-border text-fg-primary mt-1 w-full border px-2 py-1.5 text-[12px]"
+                                bind:value={scheduler.dark_blueprint}
+                            >
+                                <option value="">None</option>
+                                {#each blueprintNames as name}
+                                    <option value={name}>{name}</option>
+                                {/each}
+                            </select>
+                        </label>
+                    </div>
+                    <div class="flex items-center justify-between gap-4">
+                        <p class="text-fg-dimmed text-[11.5px]">
+                            {scheduler.mode === 'schedule'
+                                ? 'Following the fixed 06:00–18:00 schedule.'
+                                : 'Following the Windows system light/dark mode.'}
+                        </p>
+                        <button
+                            type="button"
+                            class="bg-accent text-accent-fg hover:bg-accent-hover h-8 shrink-0 px-3.5 text-[12px] font-semibold transition-colors disabled:opacity-60"
+                            onclick={saveScheduler}
+                            disabled={schedulerBusy}
+                        >
+                            {schedulerBusy ? 'Saving…' : 'Save'}
+                        </button>
+                    </div>
+                </div>
+            {:else}
+                <p class="text-fg-dimmed text-[12px]">
+                    Scheduler settings unavailable.
+                </p>
+            {/if}
         </section>
 
         {#if isWindows}

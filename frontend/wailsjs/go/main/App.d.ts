@@ -3,6 +3,7 @@
 import {color} from '../models';
 import {theme} from '../models';
 import {main} from '../models';
+import {bundle} from '../models';
 import {browsers} from '../models';
 import {harnesses} from '../models';
 import {favorites} from '../models';
@@ -11,7 +12,10 @@ import {icontheme} from '../models';
 import {omarchy} from '../models';
 import {ipc} from '../models';
 import {wallpaper} from '../models';
+import {time} from '../models';
+import {scheduler} from '../models';
 import {wallhaven} from '../models';
+import {snapshot} from '../models';
 
 export function AdjustPaletteColors(arg1:Array<string>,arg2:color.Adjustments):Promise<Array<string>>;
 
@@ -26,6 +30,14 @@ export function ApplyWallpaperOnly(arg1:string):Promise<void>;
 export function BlueprintExists(arg1:string):Promise<boolean>;
 
 export function BlurWallpaper(arg1:string):Promise<string>;
+
+export function BundleExport(arg1:string):Promise<void>;
+
+export function BundleExportDialog():Promise<string>;
+
+export function BundleImport(arg1:string):Promise<bundle.Result>;
+
+export function BundleImportDialog():Promise<main.ImportResult>;
 
 export function CancelBatchProcessing():Promise<void>;
 
@@ -163,11 +175,25 @@ export function SaveWallpaperTags(arg1:Record<string, any>):Promise<void>;
 
 export function ScanLocalWallpapers():Promise<Array<wallpaper.WallpaperInfo>>;
 
+export function SchedulerDesiredMode(arg1:time.Time):Promise<string>;
+
+export function SchedulerLoad():Promise<scheduler.Settings>;
+
+export function SchedulerSave(arg1:scheduler.Settings):Promise<void>;
+
+export function SchedulerShouldSwitch(arg1:string):Promise<boolean>;
+
 export function SearchWallhaven(arg1:wallhaven.SearchParams):Promise<wallhaven.SearchResult>;
 
 export function SetExtractionMode(arg1:string):Promise<void>;
 
 export function SetWallhavenAPIKey(arg1:string):Promise<void>;
+
+export function SnapshotCapture(arg1:string):Promise<string>;
+
+export function SnapshotList():Promise<Array<snapshot.Info>>;
+
+export function SnapshotRollback(arg1:string):Promise<void>;
 
 export function StartBatchProcessing(arg1:Array<string>,arg2:boolean):Promise<void>;
 

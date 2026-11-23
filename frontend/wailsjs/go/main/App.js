@@ -30,6 +30,22 @@ export function BlurWallpaper(arg1) {
   return window['go']['main']['App']['BlurWallpaper'](arg1);
 }
 
+export function BundleExport(arg1) {
+  return window['go']['main']['App']['BundleExport'](arg1);
+}
+
+export function BundleExportDialog() {
+  return window['go']['main']['App']['BundleExportDialog']();
+}
+
+export function BundleImport(arg1) {
+  return window['go']['main']['App']['BundleImport'](arg1);
+}
+
+export function BundleImportDialog() {
+  return window['go']['main']['App']['BundleImportDialog']();
+}
+
 export function CancelBatchProcessing() {
   return window['go']['main']['App']['CancelBatchProcessing']();
 }
@@ -302,6 +318,22 @@ export function ScanLocalWallpapers() {
   return window['go']['main']['App']['ScanLocalWallpapers']();
 }
 
+export function SchedulerDesiredMode(arg1) {
+  return window['go']['main']['App']['SchedulerDesiredMode'](arg1);
+}
+
+export function SchedulerLoad() {
+  return window['go']['main']['App']['SchedulerLoad']();
+}
+
+export function SchedulerSave(arg1) {
+  return window['go']['main']['App']['SchedulerSave'](arg1);
+}
+
+export function SchedulerShouldSwitch(arg1) {
+  return window['go']['main']['App']['SchedulerShouldSwitch'](arg1);
+}
+
 export function SearchWallhaven(arg1) {
   return window['go']['main']['App']['SearchWallhaven'](arg1);
 }
@@ -312,6 +344,18 @@ export function SetExtractionMode(arg1) {
 
 export function SetWallhavenAPIKey(arg1) {
   return window['go']['main']['App']['SetWallhavenAPIKey'](arg1);
+}
+
+export function SnapshotCapture(arg1) {
+  return window['go']['main']['App']['SnapshotCapture'](arg1);
+}
+
+export function SnapshotList() {
+  return window['go']['main']['App']['SnapshotList']();
+}
+
+export function SnapshotRollback(arg1) {
+  return window['go']['main']['App']['SnapshotRollback'](arg1);
 }
 
 export function StartBatchProcessing(arg1, arg2) {

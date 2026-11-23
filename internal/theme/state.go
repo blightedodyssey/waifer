@@ -29,23 +29,24 @@ type ThemeState struct {
 	IconTheme             icontheme.Selection          `json:"iconTheme"`
 }
 
-// DefaultPalette is the Catppuccin-inspired default 16-color palette.
+// DefaultPalette is the Waifer default 16-color palette: deep slate-violet
+// dark theme with violet/gold accents, high contrast out of the box.
 var DefaultPalette = [16]string{
-	"#1e1e2e", // 0: Background/Black
-	"#f38ba8", // 1: Red
-	"#a6e3a1", // 2: Green
-	"#f9e2af", // 3: Yellow
-	"#89b4fa", // 4: Blue
-	"#cba6f7", // 5: Magenta
-	"#94e2d5", // 6: Cyan
-	"#cdd6f4", // 7: White
-	"#45475a", // 8: Bright Black
-	"#f38ba8", // 9: Bright Red
-	"#a6e3a1", // 10: Bright Green
-	"#f9e2af", // 11: Bright Yellow
-	"#89b4fa", // 12: Bright Blue
-	"#cba6f7", // 13: Bright Magenta
-	"#94e2d5", // 14: Bright Cyan
+	"#0f0e17", // 0: Background/Black
+	"#ff5c8a", // 1: Red
+	"#5ee6a0", // 2: Green
+	"#e5a93b", // 3: Yellow
+	"#7f5af0", // 4: Blue
+	"#c792ea", // 5: Magenta
+	"#4fd6be", // 6: Cyan
+	"#f4f4f8", // 7: White
+	"#161522", // 8: Bright Black
+	"#ff7ba3", // 9: Bright Red
+	"#7df0b3", // 10: Bright Green
+	"#f0c25c", // 11: Bright Yellow
+	"#9a7ff5", // 12: Bright Blue
+	"#d8a8f0", // 13: Bright Magenta
+	"#6fe3d0", // 14: Bright Cyan
 	"#ffffff", // 15: Bright White
 }
 

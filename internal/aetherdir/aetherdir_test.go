@@ -1,6 +1,8 @@
 package aetherdir
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -21,7 +23,12 @@ func TestRoot(t *testing.T) {
 	tmp := setupTestEnv(t)
 	got := Root()
 	if runtime.GOOS == "windows" {
-		want := filepath.Join(tmp, "Aether")
+		want := filepath.Join(tmp, "Waifer")
+		if got != want {
+			t.Errorf("Root() = %q, want %q", got, want)
+		}
+	} else {
+		want := filepath.Join(tmp, ".local", "share", "aether")
 		if got != want {
 			t.Errorf("Root() = %q, want %q", got, want)
 		}
@@ -202,5 +209,232 @@ func TestSeedStarterTemplates_SkipsWhenNotEmpty(t *testing.T) {
 	// Existing file should still be there
 	if _, err := os.Stat(existing); err != nil {
 		t.Errorf("existing template was removed: %v", err)
+	}
+}
+
+func fullTestVars() map[string]string {
+	vars := map[string]string{
+		"background": "#1e1e2e",
+		"foreground": "#cdd6f4",
+		"accent":     "#f5c2e7",
+		"cursor":     "#cba6f7",
+	}
+	for i := 0; i < 16; i++ {
+		vars[fmt.Sprintf("color%d", i)] = fmt.Sprintf("#%06x", i)
+	}
+	return vars
+}
+
+func TestMigrateFromLegacy(t *testing.T) {
+	tmp := setupTestEnv(t)
+	legacy := filepath.Join(tmp, legacyAppDir)
+	waifer := filepath.Join(tmp, waiferAppDir)
+	files := map[string]string{
+		filepath.Join("current", "colors.toml"):          "background = '#000000'\n",
+		filepath.Join("current", "presets", "rose.json"): `{"name":"Rose Pine"}`,
+		filepath.Join("blueprints", "bp.json"):           `{"name":"Blueprint"}`,
+	}
+	for rel, content := range files {
+		path := filepath.Join(legacy, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatalf("mkdir legacy %s: %v", rel, err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("write legacy %s: %v", rel, err)
+		}
+	}
+
+	if err := MigrateFromLegacy(); err != nil {
+		t.Fatalf("MigrateFromLegacy error: %v", err)
+	}
+	for rel, want := range files {
+		got, err := os.ReadFile(filepath.Join(waifer, rel))
+		if err != nil {
+			t.Errorf("read migrated %s: %v", rel, err)
+			continue
+		}
+		if string(got) != want {
+			t.Errorf("migrated %s = %q, want %q", rel, got, want)
+		}
+		if _, err := os.Stat(filepath.Join(legacy, rel)); err != nil {
+			t.Errorf("legacy %s should be preserved: %v", rel, err)
+		}
+	}
+
+	// Second call is a no-op and must not overwrite anything in Waifer.
+	sentinel := filepath.Join(waifer, "custom.txt")
+	if err := os.WriteFile(sentinel, []byte("keep"), 0644); err != nil {
+		t.Fatalf("write sentinel: %v", err)
+	}
+	if err := MigrateFromLegacy(); err != nil {
+		t.Fatalf("second MigrateFromLegacy error: %v", err)
+	}
+	if data, err := os.ReadFile(sentinel); err != nil || string(data) != "keep" {
+		t.Errorf("sentinel changed: data=%q err=%v", data, err)
+	}
+}
+
+func TestMigrateFromLegacy_NoLegacyTree(t *testing.T) {
+	setupTestEnv(t)
+	if err := MigrateFromLegacy(); err != nil {
+		t.Fatalf("MigrateFromLegacy with no legacy tree: %v", err)
+	}
+}
+
+func TestEnsureMigratesLegacyTree(t *testing.T) {
+	tmp := setupTestEnv(t)
+	legacyFile := filepath.Join(tmp, legacyAppDir, "current", "colors.toml")
+	if err := os.MkdirAll(filepath.Dir(legacyFile), 0755); err != nil {
+		t.Fatalf("mkdir legacy current: %v", err)
+	}
+	if err := os.WriteFile(legacyFile, []byte("legacy-colors"), 0644); err != nil {
+		t.Fatalf("write legacy colors: %v", err)
+	}
+
+	if err := Ensure(); err != nil {
+		t.Fatalf("Ensure error: %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(tmp, waiferAppDir, "current", "colors.toml"))
+	if err != nil {
+		t.Fatalf("Ensure did not migrate legacy colors: %v", err)
+	}
+	if string(got) != "legacy-colors" {
+		t.Errorf("migrated colors = %q, want %q", got, "legacy-colors")
+	}
+}
+
+func TestWriteThemeCSS(t *testing.T) {
+	setupTestEnv(t)
+	if err := WriteThemeCSS(fullTestVars()); err != nil {
+		t.Fatalf("WriteThemeCSS error: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(CurrentDir(), "theme.css"))
+	if err != nil {
+		t.Fatalf("read theme.css: %v", err)
+	}
+	content := string(data)
+	for _, want := range []string{
+		"--bg: #1e1e2e;", "--fg: #cdd6f4;", "--accent: #f5c2e7;",
+		"--cursor: #cba6f7;", "--color0: #000000;", "--color15: #00000f;",
+	} {
+		if !strings.Contains(content, want) {
+			t.Errorf("theme.css missing %q:\n%s", want, content)
+		}
+	}
+
+	vars := fullTestVars()
+	delete(vars, "cursor")
+	if err := WriteThemeCSS(vars); err != nil {
+		t.Fatalf("WriteThemeCSS without cursor: %v", err)
+	}
+	data, err = os.ReadFile(filepath.Join(CurrentDir(), "theme.css"))
+	if err != nil {
+		t.Fatalf("read theme.css: %v", err)
+	}
+	if strings.Contains(string(data), "--cursor:") {
+		t.Errorf("theme.css should omit missing cursor:\n%s", data)
+	}
+}
+
+func TestWriteThemeJSON(t *testing.T) {
+	setupTestEnv(t)
+	if err := WriteThemeJSON(fullTestVars()); err != nil {
+		t.Fatalf("WriteThemeJSON error: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(CurrentDir(), "theme.json"))
+	if err != nil {
+		t.Fatalf("read theme.json: %v", err)
+	}
+	var payload struct {
+		Background string            `json:"background"`
+		Foreground string            `json:"foreground"`
+		Accent     string            `json:"accent"`
+		Cursor     string            `json:"cursor"`
+		Colors     map[string]string `json:"colors"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("invalid theme.json: %v\n%s", err, data)
+	}
+	if payload.Background != "#1e1e2e" || payload.Foreground != "#cdd6f4" ||
+		payload.Accent != "#f5c2e7" || payload.Cursor != "#cba6f7" {
+		t.Errorf("unexpected semantic colors: %+v", payload)
+	}
+	if len(payload.Colors) != 16 || payload.Colors["color0"] != "#000000" ||
+		payload.Colors["color15"] != "#00000f" {
+		t.Errorf("unexpected colors object: %+v", payload.Colors)
+	}
+}
+
+func TestWriteColorsINI(t *testing.T) {
+	setupTestEnv(t)
+	if err := WriteColorsINI(fullTestVars()); err != nil {
+		t.Fatalf("WriteColorsINI error: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(CurrentDir(), "colors.ini"))
+	if err != nil {
+		t.Fatalf("read colors.ini: %v", err)
+	}
+	content := string(data)
+	for _, want := range []string{
+		"[Colors]", "background=#1e1e2e", "foreground=#cdd6f4", "accent=#f5c2e7",
+		"cursor=#cba6f7", "color0=#000000", "color15=#00000f",
+	} {
+		if !strings.Contains(content, want) {
+			t.Errorf("colors.ini missing %q:\n%s", want, content)
+		}
+	}
+}
+
+func TestWriteColorsPS1(t *testing.T) {
+	setupTestEnv(t)
+	if err := WriteColorsPS1(fullTestVars()); err != nil {
+		t.Fatalf("WriteColorsPS1 error: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(CurrentDir(), "colors.ps1"))
+	if err != nil {
+		t.Fatalf("read colors.ps1: %v", err)
+	}
+	content := string(data)
+	for _, want := range []string{
+		"$WaiferColors = @{", "background = '#1e1e2e'", "cursor = '#cba6f7'",
+		"color0 = '#000000'", "color15 = '#00000f'",
+	} {
+		if !strings.Contains(content, want) {
+			t.Errorf("colors.ps1 missing %q:\n%s", want, content)
+		}
+	}
+}
+
+func TestWriteLiveExports(t *testing.T) {
+	setupTestEnv(t)
+	if err := WriteLiveExports(fullTestVars()); err != nil {
+		t.Fatalf("WriteLiveExports error: %v", err)
+	}
+	for _, name := range []string{
+		"theme.css", "theme.json", "colors.ini", "colors.ps1", "colors.toml", "theme.md",
+	} {
+		if _, err := os.Stat(filepath.Join(CurrentDir(), name)); err != nil {
+			t.Errorf("missing live export %s: %v", name, err)
+		}
+	}
+}
+
+func TestWriteLiveExports_ContinuesAfterFailure(t *testing.T) {
+	setupTestEnv(t)
+	if err := Ensure(); err != nil {
+		t.Fatalf("Ensure error: %v", err)
+	}
+	// A directory at theme.css makes that single export fail.
+	if err := os.Mkdir(filepath.Join(CurrentDir(), "theme.css"), 0755); err != nil {
+		t.Fatalf("mkdir theme.css: %v", err)
+	}
+
+	if err := WriteLiveExports(fullTestVars()); err == nil {
+		t.Fatal("WriteLiveExports should return the first export error")
+	}
+	for _, name := range []string{"theme.json", "colors.ini", "colors.ps1", "colors.toml", "theme.md"} {
+		if _, err := os.Stat(filepath.Join(CurrentDir(), name)); err != nil {
+			t.Errorf("export %s was skipped after theme.css failure: %v", name, err)
+		}
 	}
 }

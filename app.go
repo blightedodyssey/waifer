@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"context"
@@ -11,11 +11,13 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"aether/internal/aetherdir"
 	"aether/internal/batch"
 	"aether/internal/blueprint"
 	"aether/internal/browsers"
+	"aether/internal/bundle"
 	"aether/internal/color"
 	"aether/internal/extraction"
 	"aether/internal/favexport"
@@ -25,6 +27,8 @@ import (
 	"aether/internal/icontheme"
 	"aether/internal/omarchy"
 	"aether/internal/platform"
+	"aether/internal/scheduler"
+	"aether/internal/snapshot"
 	"aether/internal/template"
 	"aether/internal/theme"
 	"aether/internal/tray"
@@ -154,7 +158,7 @@ func (a *App) startup(ctx context.Context) {
 		log.Printf("install default wallpapers: %v", err)
 	}
 	if err := platform.EnsureURLHandler(ctx); err != nil {
-		log.Printf("register aether:// handler: %v", err)
+		log.Printf("register waifer:// handler: %v", err)
 	}
 	a.themeWatcher.Start(ctx)
 
@@ -167,7 +171,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 
 	// Pick up a one-click import that was staged before the GUI started
-	// (e.g. browser clicked aether:// while Aether was closed).
+	// (e.g. browser clicked waifer:// while Waifer was closed).
 	a.loadPendingImport()
 
 	// Start system tray (Windows + Linux; noop on other platforms)
@@ -264,7 +268,7 @@ func (a *App) SetExtractionMode(mode string) {
 }
 
 // SyncStateRequest mirrors the frontend editor state into Go so IPC readers
-// (`aether status`, etc.) reflect live edits without requiring Apply.
+// (`waifer status`, etc.) reflect live edits without requiring Apply.
 type SyncStateRequest struct {
 	Palette          []string                     `json:"palette"`
 	WallpaperPath    string                       `json:"wallpaperPath"`
@@ -327,7 +331,7 @@ const (
 
 // buildColorRoles converts a palette slice into a fixed [16]string array plus
 // a populated template.ColorRoles, applying any user overrides from
-// extendedColors. Centralizes the palette → roles mapping shared by
+// extendedColors. Centralizes the palette â†’ roles mapping shared by
 // ComputeVariables, ApplyTheme, and ExportTheme.
 func buildColorRoles(paletteSlice []string, extendedColors map[string]string) ([16]string, template.ColorRoles) {
 	var palette [16]string
@@ -438,7 +442,26 @@ func (a *App) ApplyTheme(req ApplyThemeRequest) (*theme.ApplyResult, error) {
 		IconTheme:        req.IconTheme,
 	}
 
-	return a.writer.ApplyTheme(state, req.Settings)
+	if id, err := snapshot.Capture("apply"); err != nil {
+		log.Printf("[ApplyTheme] snapshot warning: %v", err)
+	} else {
+		log.Printf("[ApplyTheme] snapshot captured: %s", id)
+	}
+
+	res, err := a.writer.ApplyTheme(state, req.Settings)
+SyncAllNativeTargets(WaiferPalette{
+Background: pAt(req.Palette, 0),
+Red:        pAt(req.Palette, 1),
+Green:      pAt(req.Palette, 2),
+Yellow:     pAt(req.Palette, 3),
+Blue:       pAt(req.Palette, 4),
+Purple:     pAt(req.Palette, 5),
+Cyan:       pAt(req.Palette, 6),
+Foreground: pAt(req.Palette, 7),
+Surface:    pAt(req.Palette, 8),
+Accent:     pAt(req.Palette, 12),
+})
+return res, err
 }
 
 // SaveAndApplyThemeRequest is the payload for saving the current state as a
@@ -508,7 +531,26 @@ func (a *App) SaveAndApplyTheme(req SaveAndApplyThemeRequest) (*theme.ApplyResul
 	if err := a.writer.GenerateOnly(state, req.Settings, targetDir); err != nil {
 		return nil, fmt.Errorf("save theme: %w", err)
 	}
-	return a.writer.ApplyTheme(state, req.Settings)
+	if id, err := snapshot.Capture("apply"); err != nil {
+		log.Printf("[ApplyTheme] snapshot warning: %v", err)
+	} else {
+		log.Printf("[ApplyTheme] snapshot captured: %s", id)
+	}
+
+	res, err := a.writer.ApplyTheme(state, req.Settings)
+SyncAllNativeTargets(WaiferPalette{
+Background: pAt(req.Palette, 0),
+Red:        pAt(req.Palette, 1),
+Green:      pAt(req.Palette, 2),
+Yellow:     pAt(req.Palette, 3),
+Blue:       pAt(req.Palette, 4),
+Purple:     pAt(req.Palette, 5),
+Cyan:       pAt(req.Palette, 6),
+Foreground: pAt(req.Palette, 7),
+Surface:    pAt(req.Palette, 8),
+Accent:     pAt(req.Palette, 12),
+})
+return res, err
 }
 
 // ThemeFolderExists checks the output adapter's destination for a saved theme.
@@ -555,7 +597,7 @@ func (a *App) ApplyWallpaperOnly(path string) error {
 	return omarchy.SetBackground(path)
 }
 
-// ClearTheme removes the Aether theme and reverts to the default.
+// ClearTheme removes the Waifer theme and reverts to the default.
 func (a *App) ClearTheme() error {
 	return theme.ClearTheme()
 }
@@ -753,6 +795,128 @@ func (a *App) ApplyBlueprint(name string) (*theme.ApplyResult, error) {
 	return a.writer.ApplyTheme(a.state, theme.DefaultApplySettings())
 }
 
+// SnapshotCapture creates a configuration snapshot with the given label.
+func (a *App) SnapshotCapture(label string) (string, error) {
+	return snapshot.Capture(label)
+}
+
+// SnapshotList returns all available snapshots.
+func (a *App) SnapshotList() ([]snapshot.Info, error) {
+	return snapshot.List()
+}
+
+// SnapshotRollback restores configuration from the snapshot with the given ID.
+func (a *App) SnapshotRollback(id string) error {
+	return snapshot.Rollback(id)
+}
+
+// BundleExport exports the current theme as a .waifer bundle.
+func (a *App) BundleExport(dest string) error {
+	colorsPath := filepath.Join(aetherdir.CurrentDir(), "colors.toml")
+	wallpaperPath := ""
+	if wp := aetherdir.CurrentDir(); wp != "" {
+		if files, err := os.ReadDir(wp); err == nil {
+			for _, f := range files {
+				if strings.HasPrefix(f.Name(), "wallpaper.") && !strings.HasSuffix(f.Name(), ".path") {
+					wallpaperPath = filepath.Join(wp, f.Name())
+					break
+				}
+			}
+		}
+	}
+	customCSSPath := filepath.Join(aetherdir.CurrentDir(), "custom.css")
+	if _, err := os.Stat(customCSSPath); os.IsNotExist(err) {
+		customCSSPath = ""
+	}
+	return bundle.Export(dest, colorsPath, wallpaperPath, customCSSPath)
+}
+
+// BundleImport extracts a .waifer bundle to the given path.
+func (a *App) BundleImport(src string) (*bundle.Result, error) {
+	return bundle.Import(src)
+}
+
+// BundleExportDialog asks where to save a .waifer bundle, then writes the
+// current theme's colors.toml, wallpaper and custom.css to it.
+func (a *App) BundleExportDialog() (string, error) {
+	path, err := a.saveFileDialog(wailsrt.SaveDialogOptions{
+		Title:           "Export Waifer Bundle",
+		DefaultFilename: "waifer-theme.waifer",
+		Filters: []wailsrt.FileFilter{
+			{DisplayName: "Waifer bundles (*.waifer)", Pattern: "*.waifer"},
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+	if path == "" {
+		return "", fmt.Errorf("cancelled")
+	}
+	if err := a.BundleExport(path); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// BundleImportDialog asks for a .waifer bundle, extracts it to the bundles
+// folder, and loads the extracted colors.toml (and wallpaper) into the editor.
+func (a *App) BundleImportDialog() (*ImportResult, error) {
+	path, err := a.openFileDialog(wailsrt.OpenDialogOptions{
+		Title: "Import Waifer Bundle",
+		Filters: []wailsrt.FileFilter{
+			{DisplayName: "Waifer bundles (*.waifer)", Pattern: "*.waifer"},
+			{DisplayName: "All Files", Pattern: "*"},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("dialog error: %w", err)
+	}
+	if path == "" {
+		return nil, fmt.Errorf("cancelled")
+	}
+	result, err := a.BundleImport(path)
+	if err != nil {
+		return nil, err
+	}
+	loaded, err := a.importFile(result.ColorsTOML, "toml")
+	if err != nil {
+		return nil, err
+	}
+	if result.Wallpaper != "" {
+		loaded.WallpaperPath = result.Wallpaper
+		a.state.WallpaperPath = result.Wallpaper
+	}
+	return loaded, nil
+}
+
+// SchedulerLoad loads scheduler settings from %LOCALAPPDATA%\Waifer\scheduler.json.
+func (a *App) SchedulerLoad() (scheduler.Settings, error) {
+	return scheduler.Load()
+}
+
+// SchedulerSave persists scheduler settings to %LOCALAPPDATA%\Waifer\scheduler.json.
+func (a *App) SchedulerSave(settings scheduler.Settings) error {
+	return scheduler.Save(settings)
+}
+
+// SchedulerDesiredMode returns the desired mode (light/dark) based on current time and settings.
+func (a *App) SchedulerDesiredMode(now time.Time) string {
+	var settings scheduler.Settings
+	if loaded, err := scheduler.Load(); err == nil {
+		settings = loaded
+	}
+	return settings.DesiredMode(now)
+}
+
+// SchedulerShouldSwitch returns true if the active blueprint should switch based on scheduler settings.
+func (a *App) SchedulerShouldSwitch(current string) bool {
+	var settings scheduler.Settings
+	if loaded, err := scheduler.Load(); err == nil {
+		settings = loaded
+	}
+	return settings.ShouldSwitch(current)
+}
+
 // BlueprintExists checks whether a blueprint with the given name already exists.
 func (a *App) BlueprintExists(name string) bool {
 	bp, _ := a.blueprints.FindByName(name)
@@ -823,7 +987,7 @@ type ExportFavoritesRequest struct {
 
 // ExportFavorites archives the given favorites into a .zip in a user-chosen
 // directory. Wallhaven favorites are remote URLs, so anything not already
-// downloaded is fetched first — which makes this slow enough that the work runs
+// downloaded is fetched first â€” which makes this slow enough that the work runs
 // in the background and reports through favorites-export-* events. Returns the
 // path the archive is being written to.
 func (a *App) ExportFavorites(req ExportFavoritesRequest) (string, error) {
@@ -857,7 +1021,7 @@ func (a *App) CancelFavoritesExport() { a.favExport.Cancel() }
 func (a *App) IsFavoritesExportRunning() bool { return a.favExport.IsRunning() }
 
 // favoriteItems resolves frontend-supplied paths against the favorites store.
-// Only the path crosses the boundary — names and metadata are read back from
+// Only the path crosses the boundary â€” names and metadata are read back from
 // the service so the archive cannot be steered by the caller.
 func (a *App) favoriteItems(paths []string) []favexport.Item {
 	known := make(map[string]favorites.Favorite)
@@ -901,7 +1065,7 @@ func (a *App) favoriteItems(paths []string) []favexport.Item {
 
 const wallpaperFolderSetting = "wallpaperFolder"
 
-// GetSettings reads saved app settings from ~/.config/aether/settings.json.
+// GetSettings reads saved app settings from ~/.config/waifer/settings.json.
 func (a *App) GetSettings() map[string]interface{} {
 	config := readConfigJSON("settings.json")
 	if config == nil {
@@ -911,7 +1075,7 @@ func (a *App) GetSettings() map[string]interface{} {
 	return config
 }
 
-// SaveSettings writes app settings to ~/.config/aether/settings.json.
+// SaveSettings writes app settings to ~/.config/waifer/settings.json.
 func (a *App) SaveSettings(config map[string]interface{}) error {
 	return writeConfigJSON("settings.json", config)
 }
@@ -951,12 +1115,12 @@ func (a *App) ChooseWallpaperFolder() (string, error) {
 // Wallpaper Tags
 // ---------------------------------------------------------------------------
 
-// GetWallpaperTags reads wallpaper tags from ~/.config/aether/tags.json.
+// GetWallpaperTags reads wallpaper tags from ~/.config/waifer/tags.json.
 func (a *App) GetWallpaperTags() map[string]interface{} {
 	return readConfigJSON("tags.json")
 }
 
-// SaveWallpaperTags writes wallpaper tags to ~/.config/aether/tags.json.
+// SaveWallpaperTags writes wallpaper tags to ~/.config/waifer/tags.json.
 func (a *App) SaveWallpaperTags(tags map[string]interface{}) error {
 	return writeConfigJSON("tags.json", tags)
 }
@@ -989,12 +1153,12 @@ func (a *App) SetWallhavenAPIKey(key string) {
 	a.wallhaven.SetAPIKey(key)
 }
 
-// GetWallhavenConfig reads the saved wallhaven settings from ~/.config/aether/wallhaven.json.
+// GetWallhavenConfig reads the saved wallhaven settings from ~/.config/waifer/wallhaven.json.
 func (a *App) GetWallhavenConfig() map[string]interface{} {
 	return readConfigJSON("wallhaven.json")
 }
 
-// SaveWallhavenConfig writes wallhaven settings to ~/.config/aether/wallhaven.json.
+// SaveWallhavenConfig writes wallhaven settings to ~/.config/waifer/wallhaven.json.
 func (a *App) SaveWallhavenConfig(config map[string]interface{}) error {
 	return writeConfigJSON("wallhaven.json", config)
 }
@@ -1063,7 +1227,7 @@ func (a *App) LoadOmarchyThemes() ([]omarchy.Theme, error) {
 }
 
 // ApplyOmarchyThemeByName activates an existing theme through Omarchy without
-// processing it through Aether templates.
+// processing it through Waifer templates.
 func (a *App) ApplyOmarchyThemeByName(name string) error {
 	if !omarchy.ThemeExists(name) {
 		return fmt.Errorf("Omarchy theme %q is available for editing only", name)
@@ -1237,7 +1401,7 @@ var windowsHiddenApps = map[string]bool{
 func (a *App) ExportTheme(req ExportThemeRequest) (string, error) {
 	// Sanitize the user-typed name. Omarchy's menu chokes on spaces and
 	// punctuation when selecting an entry, so the directory and symlink
-	// names need to be a slug regardless of installToOmarchy — the
+	// names need to be a slug regardless of installToOmarchy â€” the
 	// resulting export folder is also more portable that way.
 	slug := omarchy.SlugifyThemeName(req.Name)
 	if slug == "" {
@@ -1358,6 +1522,19 @@ func (a *App) ImportFileDialog(fileType string) (*ImportResult, error) {
 			{DisplayName: "YML Files", Pattern: "*.yml"},
 			{DisplayName: "All Files", Pattern: "*"},
 		}
+	case "base24":
+		title = "Import Base24 Scheme"
+		filters = []wailsrt.FileFilter{
+			{DisplayName: "YAML Files", Pattern: "*.yaml"},
+			{DisplayName: "YML Files", Pattern: "*.yml"},
+			{DisplayName: "All Files", Pattern: "*"},
+		}
+	case "pywal":
+		title = "Import Pywal / Wallust Palette"
+		filters = []wailsrt.FileFilter{
+			{DisplayName: "JSON Files", Pattern: "*.json"},
+			{DisplayName: "All Files", Pattern: "*"},
+		}
 	case "toml":
 		title = "Import Colors TOML"
 		filters = []wailsrt.FileFilter{
@@ -1397,6 +1574,10 @@ func (a *App) importFile(path, fileType string) (*ImportResult, error) {
 	switch fileType {
 	case "base16":
 		bp, err = blueprint.ImportBase16(path)
+	case "base24":
+		bp, err = blueprint.ImportBase24(path)
+	case "pywal":
+		bp, err = blueprint.ImportPywal(path)
 	case "toml":
 		bp, err = blueprint.ImportColorsToml(path)
 	case "blueprint":
@@ -1496,8 +1677,9 @@ func (a *App) GetTemplateColors() map[string][]string {
 		}
 	}
 
-	// Aether's own templates are internal and should not be user-overridable
+	// Waifer's own templates are internal and should not be user-overridable
 	delete(appColorSets, "aether")
+	delete(appColorSets, "waifer")
 
 	result := make(map[string][]string, len(appColorSets))
 	for app, colorSet := range appColorSets {
@@ -1513,10 +1695,10 @@ func (a *App) GetTemplateColors() map[string][]string {
 }
 
 // ---------------------------------------------------------------------------
-// Aetherdir / Ecosystem Status
+// Waifer Ecosystem Status
 // ---------------------------------------------------------------------------
 
-// GetAetherDirStatus returns metadata about the %LOCALAPPDATA%\Aether\ ecosystem
+// GetAetherDirStatus returns metadata about the %LOCALAPPDATA%\Waifer\ ecosystem
 // directories (current, templates, hooks) for display in the Settings panel.
 type AetherDirStatus struct {
 	CurrentThemePath string `json:"currentThemePath"`
@@ -1571,7 +1753,7 @@ func (a *App) GetAetherDirStatus() AetherDirStatus {
 }
 
 // ListUserTemplates returns the names of all .tpl files in the user templates
-// directory (%LOCALAPPDATA%\Aether\templates\*.tpl).
+// directory (%LOCALAPPDATA%\Waifer\templates\*.tpl).
 func (a *App) ListUserTemplates() ([]string, error) {
 	_ = aetherdir.Ensure()
 	entries, err := os.ReadDir(aetherdir.TemplatesDir())
@@ -1591,7 +1773,7 @@ func (a *App) ListUserTemplates() ([]string, error) {
 }
 
 // GetCurrentThemePath returns the path to the active theme directory
-// (%LOCALAPPDATA%\Aether\current\ or the App's configured ThemeDir).
+// (%LOCALAPPDATA%\Waifer\current\ or the App's configured ThemeDir).
 func (a *App) GetCurrentThemePath() string {
 	currentDir := aetherdir.CurrentDir()
 	if _, err := os.Stat(filepath.Join(currentDir, "colors.toml")); err == nil {
@@ -1621,7 +1803,7 @@ func (a *App) OpenFolderInExplorer(folderPath string) error {
 	return openFileManager(folderPath)
 }
 
-// GetHeadlessCLICommand returns the aether.exe command line for the currently
+// GetHeadlessCLICommand returns the waifer.exe command line for the currently
 // active theme, suitable for Flow Launcher / PowerToys Run / AutoHotkey.
 func (a *App) GetHeadlessCLICommand() string {
 	themePath := a.GetCurrentThemePath()
@@ -1630,7 +1812,7 @@ func (a *App) GetHeadlessCLICommand() string {
 	}
 	exe, err := os.Executable()
 	if err != nil {
-		exe = "aether.exe"
+		exe = "waifer.exe"
 	}
 	// Try to find the theme name from the path
 	name := filepath.Base(themePath)
@@ -1999,7 +2181,7 @@ func wallpaperFolderFromConfig(config map[string]interface{}) string {
 		return defaultDir
 	}
 	// Self-heal if a leftover Go test temp-directory leak was persisted into the
-	// real settings.json (e.g. from a previous test writing a TempDir/TestName/…
+	// real settings.json (e.g. from a previous test writing a TempDir/TestName/â€¦
 	// into the config). The first component after TempDir must start with
 	// "test" (case-insensitive, matching Go's t.TempDir() naming).
 	tempDir := os.TempDir()
@@ -2016,3 +2198,4 @@ func wallpaperFolderFromConfig(config map[string]interface{}) string {
 	}
 	return folder
 }
+

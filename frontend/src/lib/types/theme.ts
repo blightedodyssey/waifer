@@ -111,21 +111,24 @@ export const DEFAULT_ADJUSTMENTS: Adjustments = {
     whitePoint: 0,
 };
 
+// Waifer default: deep slate-violet dark theme with violet/gold accents.
+// High contrast by design so every label, tab, slider and pill is legible
+// before any wallpaper is selected.
 export const DEFAULT_PALETTE: string[] = [
-    '#1e1e2e',
-    '#f38ba8',
-    '#a6e3a1',
-    '#f9e2af',
-    '#89b4fa',
-    '#cba6f7',
-    '#94e2d5',
-    '#cdd6f4',
-    '#45475a',
-    '#f38ba8',
-    '#a6e3a1',
-    '#f9e2af',
-    '#89b4fa',
-    '#cba6f7',
-    '#94e2d5',
-    '#ffffff',
+    '#0f0e17', // 0: background / black
+    '#ff5c8a', // 1: red
+    '#5ee6a0', // 2: green
+    '#e5a93b', // 3: yellow / gold
+    '#7f5af0', // 4: blue / violet accent
+    '#c792ea', // 5: magenta
+    '#4fd6be', // 6: cyan
+    '#f4f4f8', // 7: white / foreground
+    '#161522', // 8: bright black
+    '#ff7ba3', // 9: bright red
+    '#7df0b3', // 10: bright green
+    '#f0c25c', // 11: bright yellow
+    '#9a7ff5', // 12: bright blue
+    '#d8a8f0', // 13: bright magenta
+    '#6fe3d0', // 14: bright cyan
+    '#ffffff', // 15: bright white
 ];

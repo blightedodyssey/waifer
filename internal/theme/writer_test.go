@@ -988,6 +988,99 @@ func TestApplyOmarchyThemeDoesNotActivateAfterGenerationFailure(t *testing.T) {
 	}
 }
 
+// setupDetectionTestEnv isolates every location used by winsys.Detect so the
+// tests never depend on integrations actually installed on the runner.
+func setupDetectionTestEnv(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	appData := filepath.Join(home, "AppData", "Roaming")
+	localAppData := filepath.Join(home, "AppData", "Local")
+	configHome := filepath.Join(home, ".config")
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("APPDATA", appData)
+	t.Setenv("LOCALAPPDATA", localAppData)
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	for _, dir := range []string{appData, localAppData, configHome} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return home
+}
+
+func TestIncludesAppNativeTargetsAlwaysOnUnlessExcluded(t *testing.T) {
+	setupDetectionTestEnv(t)
+	for _, app := range []string{"system", "windows-terminal"} {
+		if got := (Settings{}).includesApp(app); got != true {
+			t.Errorf("Settings{}.includesApp(%q) = %v, want true", app, got)
+		}
+		if got := (Settings{IncludedApps: map[string]bool{app: false}}).includesApp(app); got != false {
+			t.Errorf("explicitly disabled %s = %v, want false", app, got)
+		}
+		if got := (Settings{ExcludedApps: map[string]bool{app: true}}).includesApp(app); got != false {
+			t.Errorf("excluded %s = %v, want false", app, got)
+		}
+	}
+}
+
+func TestIncludesAppDetectsInstalledTargets(t *testing.T) {
+	home := setupDetectionTestEnv(t)
+	appData := os.Getenv("APPDATA")
+	localAppData := os.Getenv("LOCALAPPDATA")
+
+	writeWriterTestFile(t, filepath.Join(home, ".config", "yasb", "styles.css"), "/* yasb */")
+	writeWriterTestFile(t, filepath.Join(home, ".config", "glazewm", "config.yaml"), "gaps: 4\n")
+	writeWriterTestFile(t, filepath.Join(appData, "discord", "settings.json"), "{}")
+	writeWriterTestFile(t, filepath.Join(localAppData, "Vencord", "settings.json"), "{}")
+	writeWriterTestFile(t, filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "opencode", "opencode.json"), "{}")
+
+	for _, app := range []string{"yasb", "glazewm", "discord", "vencord", "opencode"} {
+		if got := (Settings{}).includesApp(app); !got {
+			t.Errorf("Settings{}.includesApp(%q) = false, want true when detected", app)
+		}
+	}
+}
+
+func TestIncludesAppAllowListAndExclusionOverrideDetection(t *testing.T) {
+	home := setupDetectionTestEnv(t)
+	writeWriterTestFile(t, filepath.Join(home, ".config", "yasb", "styles.css"), "/* yasb */")
+
+	// Explicit opt-in works even when nothing is installed.
+	if got := (Settings{IncludedApps: map[string]bool{"glazewm": true}}).includesApp("glazewm"); !got {
+		t.Error("IncludedApps[glazewm] = true did not force-enable an undetected target")
+	}
+	// Exclusion and explicit opt-out both beat detection.
+	if got := (Settings{ExcludedApps: map[string]bool{"yasb": true}}).includesApp("yasb"); got {
+		t.Error("ExcludedApps[yasb] = true did not disable a detected target")
+	}
+	if got := (Settings{IncludedApps: map[string]bool{"yasb": false}}).includesApp("yasb"); got {
+		t.Error("IncludedApps[yasb] = false did not disable a detected target")
+	}
+}
+
+func TestIncludesAppKeepsLegacyEditorFlags(t *testing.T) {
+	setupDetectionTestEnv(t)
+
+	for _, tc := range []struct {
+		app      string
+		settings Settings
+		want     bool
+	}{
+		{"zed", Settings{IncludeZed: true}, true},
+		{"vscode", Settings{IncludeVscode: true}, true},
+		{"neovim", Settings{IncludeNeovim: true}, true},
+		{"zed", Settings{}, false},
+		// A populated IncludedApps map for other targets must not hide the
+		// legacy editor flags when there is no entry for this editor.
+		{"vscode", Settings{IncludedApps: map[string]bool{"kitty": true}, IncludeVscode: true}, true},
+	} {
+		if got := tc.settings.includesApp(tc.app); got != tc.want {
+			t.Errorf("%+v.includesApp(%q) = %v, want %v", tc.settings, tc.app, got, tc.want)
+		}
+	}
+}
+
 func TestReplaceThemeDirRetainsBackupWhenRollbackFails(t *testing.T) {
 	root := setupWriterTestEnv(t)
 	target := filepath.Join(root, "aether")

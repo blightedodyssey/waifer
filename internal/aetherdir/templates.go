@@ -19,11 +19,54 @@ type UserTemplate struct {
 
 // targetDirectivePrefix is the expected start of a target directive line.
 // Supported formats:
-//   # target: <path>
-//   // target: <path>
+//
+//	# target: <path>
+//	// target: <path>
 const targetDirectivePrefix = "target:"
 
-// ParseUserTemplates scans %LOCALAPPDATA%\Aether\templates\*.tpl and parses
+// starterTerminalSchemeTemplate is the Windows Terminal starter template.
+//
+// It deliberately does NOT target settings.json. Windows Terminal's settings
+// file is merged key-by-key by winsys.ApplyWindowsTerminal (JSONC-aware, with a
+// profile safety lock); rendering a template over the whole file is what used
+// to wipe profiles.list and trigger "All profiles were hidden in your
+// settings". This file is a standalone scheme for manual import instead.
+const starterTerminalSchemeTemplate = `// target: %LOCALAPPDATA%\Waifer\current\windows-terminal-scheme.json
+// waifer color scheme for Windows Terminal (standalone, for manual import).
+// waifer merges this scheme into %LOCALAPPDATA%\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json
+// itself, preserving every profile, action and keybinding. To use it by hand,
+// copy the object below into the "schemes" array of settings.json.
+
+{
+  "name": "Waifer",
+  "background": "{{background}}",
+  "foreground": "{{foreground}}",
+  "cursorColor": "{{cursor}}",
+  "selectionBackground": "{{accent}}",
+  "black": "{{color0}}",
+  "red": "{{color1}}",
+  "green": "{{color2}}",
+  "yellow": "{{color3}}",
+  "blue": "{{color4}}",
+  "purple": "{{color5}}",
+  "cyan": "{{color6}}",
+  "white": "{{color7}}",
+  "brightBlack": "{{color8}}",
+  "brightRed": "{{color9}}",
+  "brightGreen": "{{color10}}",
+  "brightYellow": "{{color11}}",
+  "brightBlue": "{{color12}}",
+  "brightPurple": "{{color13}}",
+  "brightCyan": "{{color14}}",
+  "brightWhite": "{{color15}}"
+}
+`
+
+// terminalTemplateName is the seeded template that must never target a live
+// Windows Terminal settings file again.
+const terminalTemplateName = "windows-terminal-aether.json.tpl"
+
+// ParseUserTemplates scans %LOCALAPPDATA%\Waifer\templates\*.tpl and parses
 // each file for a target directive on line 1. It returns only templates that
 // have a valid target directive. Windows environment variables (%APPDATA%,
 // %LOCALAPPDATA%, %USERPROFILE%) in the target path are expanded.
@@ -49,7 +92,7 @@ func ParseUserTemplates(vars map[string]string) ([]UserTemplate, error) {
 		tpl, err := parseSingleTemplate(srcPath, vars)
 		if err != nil {
 			// Log but continue — individual bad templates shouldn't break the whole apply.
-			fmt.Fprintf(os.Stderr, "aether: skip template %s: %v\n", entry.Name(), err)
+			fmt.Fprintf(os.Stderr, "waifer: skip template %s: %v\n", entry.Name(), err)
 			continue
 		}
 		if tpl != nil {
@@ -114,6 +157,13 @@ func (t *UserTemplate) Render() error {
 		result = strings.ReplaceAll(result, "{{"+key+"_hex}}", stripped)
 	}
 
+	// Refuse to replace a file another application owns wholesale. Windows
+	// Terminal validates profiles.list on load, so a template render over its
+	// settings.json is what produced "All profiles were hidden in your settings".
+	if protectedTemplateTarget(t.TargetPath) {
+		return fmt.Errorf("refusing to write %s: waifer merges this file key-by-key instead of replacing it", t.TargetPath)
+	}
+
 	// Ensure parent directory exists
 	if err := os.MkdirAll(filepath.Dir(t.TargetPath), 0755); err != nil {
 		return fmt.Errorf("create target dir for %s: %w", t.TargetPath, err)
@@ -123,6 +173,43 @@ func (t *UserTemplate) Render() error {
 		return fmt.Errorf("write rendered template %s: %w", t.TargetPath, err)
 	}
 	return nil
+}
+
+// protectedTemplateTarget reports whether path is a file whose entire contents
+// belong to another application and must never be replaced by a template.
+func protectedTemplateTarget(path string) bool {
+	clean := strings.ToLower(filepath.Clean(path))
+	if filepath.Base(clean) != "settings.json" {
+		return false
+	}
+	return strings.Contains(clean, "microsoft.windowsterminal") ||
+		strings.Contains(clean, `microsoft\windows terminal`) ||
+		strings.Contains(clean, "microsoft/windows terminal")
+}
+
+// repairTerminalTemplate migrates a template seeded by an earlier waifer build
+// that targeted Windows Terminal's live settings.json. Only that exact file is
+// rewritten, and only while its target directive still points at the Terminal
+// settings file, so user-authored templates are never touched.
+func repairTerminalTemplate(tplDir string) error {
+	path := filepath.Join(tplDir, terminalTemplateName)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	firstLine := strings.SplitN(string(data), "\n", 2)[0]
+	idx := strings.Index(firstLine, targetDirectivePrefix)
+	if idx < 0 {
+		return nil
+	}
+	target := ExpandEnvVars(strings.TrimSpace(firstLine[idx+len(targetDirectivePrefix):]))
+	if !protectedTemplateTarget(target) {
+		return nil // already migrated, or deliberately pointed elsewhere
+	}
+	return os.WriteFile(path, []byte(starterTerminalSchemeTemplate), 0o644)
 }
 
 // RenderAll applies all parsed user templates and returns any errors.
@@ -136,7 +223,7 @@ func RenderAll(templates []UserTemplate) []error {
 	return errs
 }
 
-// SeedStarterTemplates creates 2–3 example .tpl files if the templates directory
+// SeedStarterTemplates creates the starter .tpl files if the templates directory
 // is empty. Existing user files are never overwritten.
 func SeedStarterTemplates() error {
 	if err := Ensure(); err != nil {
@@ -146,6 +233,11 @@ func SeedStarterTemplates() error {
 	entries, err := os.ReadDir(tplDir)
 	if err != nil && !os.IsNotExist(err) {
 		return err
+	}
+	// Self-heal the previously seeded template that overwrote Windows
+	// Terminal's settings.json before the directory is considered seeded.
+	if err := repairTerminalTemplate(tplDir); err != nil {
+		fmt.Fprintf(os.Stderr, "waifer: template self-heal skipped: %v\n", err)
 	}
 	// If directory has any files, skip seeding.
 	for _, e := range entries {
@@ -161,8 +253,8 @@ func SeedStarterTemplates() error {
 		{
 			name: "alacritty-aether.toml.tpl",
 			content: `# target: %APPDATA%\alacritty\aether-colors.toml
-# Aether drop-in template for Alacritty terminal colors.
-# Drop more .tpl files into %LOCALAPPDATA%\Aether\templates\ to target any app.
+# Waifer drop-in template for Alacritty terminal colors.
+# Drop more .tpl files into %LOCALAPPDATA%\Waifer\templates\ to target any app.
 
 [colors.primary]
 background = "{{background}}"
@@ -194,42 +286,15 @@ white   = "{{color15}}"
 `,
 		},
 		{
-			name: "windows-terminal-aether.json.tpl",
-			content: `// target: %LOCALAPPDATA%\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json
-// Aether drop-in template for Windows Terminal color scheme.
-// Uncomment and adjust the "schemes" array placement as needed.
-
-{
-  "name": "Aether",
-  "background": "{{background_hex}}",
-  "foreground": "{{foreground_hex}}",
-  "cursorColor": "{{cursor_hex}}",
-  "selectionBackground": "{{accent_hex}}",
-  "black": "{{color0_hex}}",
-  "red": "{{color1_hex}}",
-  "green": "{{color2_hex}}",
-  "yellow": "{{color3_hex}}",
-  "blue": "{{color4_hex}}",
-  "purple": "{{color5_hex}}",
-  "cyan": "{{color6_hex}}",
-  "white": "{{color7_hex}}",
-  "brightBlack": "{{color8_hex}}",
-  "brightRed": "{{color9_hex}}",
-  "brightGreen": "{{color10_hex}}",
-  "brightYellow": "{{color11_hex}}",
-  "brightBlue": "{{color12_hex}}",
-  "brightPurple": "{{color13_hex}}",
-  "brightCyan": "{{color14_hex}}",
-  "brightWhite": "{{color15_hex}}"
-}
-`,
+			name:    terminalTemplateName,
+			content: starterTerminalSchemeTemplate,
 		},
 		{
 			name: "vscode-settings-aether.json.tpl",
 			content: `// target: %APPDATA%\Code\User\settings.json
-// Aether drop-in template for VS Code workbench colors.
+// Waifer drop-in template for VS Code workbench colors.
 // This writes a standalone file; merge into your existing settings.json manually
-// or use Aether's built-in VS Code export (Settings > Apps > VS Code).
+// or use Waifer's built-in VS Code export (Settings > Apps > VS Code).
 
 {
   "workbench.colorCustomizations": {
@@ -250,7 +315,7 @@ white   = "{{color15}}"
 		{
 			name: "yasb-aether-colors.css.tpl",
 			content: `// target: %USERPROFILE%\.config\yasb\aether-colors.css
-// Aether drop-in template for YASB status bar colors.
+// Waifer drop-in template for YASB status bar colors.
 // The app target writes aether-colors.css directly; this template overrides it.
 
 :root {
@@ -276,18 +341,27 @@ white   = "{{color15}}"
 		},
 		{
 			name: "glazewm-aether-colors.yaml.tpl",
-			content: `// target: %USERPROFILE%\.glzr\glazewm\aether-colors.yaml
-// Aether drop-in template for GlazeWM border colors.
-// Import this from your config.yaml with: $include aether-colors.yaml
+			content: `# target: %LOCALAPPDATA%\Waifer\current\glazewm-window-effects.yaml
+# waifer-managed GlazeWM v3 border effects (standalone, for manual import).
+# waifer writes these values into %USERPROFILE%\.glzr\glazewm\config.yaml itself,
+# preserving your keybindings and window rules. Copy the block below into the
+# top level of config.yaml to apply them by hand.
 
-focused_border_color: "{{accent_hex}}"
-other_windows_border_color: "{{foreground_hex}}"
+window_effects:
+  focused_window:
+    border:
+      enabled: true
+      color: "{{accent}}"
+  other_windows:
+    border:
+      enabled: true
+      color: "{{bright_black}}"
 `,
 		},
 		{
 			name: "opencode-aether-theme.json.tpl",
 			content: `// target: %USERPROFILE%\.config\opencode\themes\aether.json
-// Aether drop-in template for OpenCode theme.
+// Waifer drop-in template for OpenCode theme.
 
 {
   "name": "aether",
@@ -316,7 +390,7 @@ other_windows_border_color: "{{foreground_hex}}"
 		{
 			name: "hermes-aether-dashboard.yaml.tpl",
 			content: `# target: %USERPROFILE%\.hermes\dashboard-themes\aether.yaml
-# Aether drop-in template for Hermes dashboard theme.
+# Waifer drop-in template for Hermes dashboard theme.
 
 name: aether
 type: dark
@@ -330,7 +404,7 @@ palette:
 		{
 			name: "pi-aether-theme.json.tpl",
 			content: `// target: %USERPROFILE%\.pi\agent\themes\aether.json
-// Aether drop-in template for Pi coding agent theme.
+// Waifer drop-in template for Pi coding agent theme.
 
 {
   "name": "aether",
@@ -350,7 +424,7 @@ palette:
 		{
 			name: "jan-aether-theme.css.tpl",
 			content: `/* target: %USERPROFILE%\jan\themes\aether-theme.css
-   Aether drop-in template for Jan Desktop theme. */
+   Waifer drop-in template for Jan Desktop theme. */
 
 :root {
   --bg: {{background}};
@@ -365,7 +439,7 @@ palette:
 		{
 			name: "aider-aether-colors.yml.tpl",
 			content: `# target: %USERPROFILE%\.aider.conf.yml
-# Aether drop-in template for Aider CLI colors.
+# Waifer drop-in template for Aider CLI colors.
 # Only color keys are updated — API keys and model settings are preserved.
 
 user-input-color: "{{accent}}"

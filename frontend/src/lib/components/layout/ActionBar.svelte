@@ -37,7 +37,11 @@
         undoAction,
         redoAction,
     } from '$lib/actions/themeActions';
-    import {importThemeFile} from '$lib/actions/importActions';
+    import {
+        importThemeFile,
+        exportWaiferBundle,
+        importWaiferBundle,
+    } from '$lib/actions/importActions';
     import SaveDialog from '$lib/components/blueprints/SaveDialog.svelte';
     import ConfirmDialog from '$lib/components/shared/ConfirmDialog.svelte';
     import KbdInverse from '$lib/components/shared/KbdInverse.svelte';
@@ -57,6 +61,55 @@
     let showExportDialog = $state(false);
     let showSaveDialog = $state(false);
     let confirmKind = $state<'revert' | 'reset' | null>(null);
+
+    // --- Config snapshots (5-slot rollback) ---
+    // Loaded lazily when the More menu opens; the backend returns
+    // oldest-first, so the UI shows the 5 most recent.
+    let snapshots = $state<{id: string; label: string; createdAt: string}[]>(
+        []
+    );
+
+    async function loadSnapshots() {
+        try {
+            const {SnapshotList} = await import(
+                '../../../../wailsjs/go/main/App'
+            );
+            const list = (await SnapshotList()) as any[];
+            snapshots = (list ?? [])
+                .slice(-5)
+                .reverse()
+                .map(s => ({
+                    id: String(s?.id ?? ''),
+                    label: String(s?.label ?? ''),
+                    createdAt: String(s?.created_at ?? ''),
+                }));
+        } catch {
+            snapshots = [];
+        }
+    }
+
+    async function rollbackSnapshot(id: string) {
+        try {
+            const {SnapshotRollback} = await import(
+                '../../../../wailsjs/go/main/App'
+            );
+            await SnapshotRollback(id);
+            showToast('Configuration restored from snapshot');
+        } catch (e: any) {
+            showToast(
+                'Snapshot restore failed: ' +
+                    (e?.message || 'see logs for details')
+            );
+        }
+    }
+
+    function formatSnapshotTime(iso: string): string {
+        try {
+            return new Date(iso).toLocaleString();
+        } catch {
+            return iso;
+        }
+    }
 
     const CONFIRM_CONFIG = {
         revert: {
@@ -289,6 +342,8 @@
 
     const importOptions = [
         {type: 'base16', label: 'Base16', ext: '.yaml'},
+        {type: 'base24', label: 'Base24', ext: '.yaml'},
+        {type: 'pywal', label: 'Pywal', ext: '.json'},
         {type: 'toml', label: 'Colors', ext: '.toml'},
         {type: 'blueprint', label: 'Blueprint', ext: '.json'},
     ] as const;
@@ -559,6 +614,7 @@
                     const open = !showMoreMenu;
                     closeMenus();
                     showMoreMenu = open;
+                    if (open) loadSnapshots();
                 }}
                 aria-label="More actions"
                 aria-haspopup="menu"
@@ -596,6 +652,50 @@
                             >
                         </button>
                     {/each}
+                    <div
+                        class="bg-border mx-2 my-1 h-px"
+                        aria-hidden="true"
+                    ></div>
+                    {@render menuItem(
+                        'Export .waifer bundle…',
+                        'Zip colors + wallpaper',
+                        exportWaiferBundle
+                    )}
+                    {@render menuItem(
+                        'Import .waifer bundle…',
+                        'Load a shared theme',
+                        importWaiferBundle
+                    )}
+                    {#if snapshots.length > 0}
+                        <div
+                            class="bg-border mx-2 my-1 h-px"
+                            aria-hidden="true"
+                        ></div>
+                        <div
+                            class="text-fg-dimmed px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                        >
+                            Restore snapshot
+                        </div>
+                        {#each snapshots as snap}
+                            <button
+                                type="button"
+                                class="text-fg-secondary hover:bg-bg-hover hover:text-fg-primary flex h-[30px] w-full items-center justify-between gap-4 px-3 text-left text-[12px] transition-colors"
+                                role="menuitem"
+                                onclick={() => {
+                                    closeMenus();
+                                    rollbackSnapshot(snap.id);
+                                }}
+                            >
+                                <span class="truncate"
+                                    >{snap.label || 'Snapshot'}</span
+                                >
+                                <span
+                                    class="text-fg-dimmed font-mono text-[10.5px]"
+                                    >{formatSnapshotTime(snap.createdAt)}</span
+                                >
+                            </button>
+                        {/each}
+                    {/if}
                 {/snippet}
                 {@render menuPanel('right', 'w-[260px]', moreItems)}
             {/if}

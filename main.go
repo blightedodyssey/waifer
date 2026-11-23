@@ -52,7 +52,7 @@ func main() {
 	}
 
 	if ipc.IsRunning() {
-		fmt.Fprintln(os.Stderr, "Aether is already running. Use IPC commands to control it.")
+		fmt.Fprintln(os.Stderr, "Waifer is already running. Use IPC commands to control it.")
 		os.Exit(1)
 	}
 
@@ -80,7 +80,7 @@ func main() {
 	app.focusTab = focusTab
 
 	err := wails.Run(&options.App{
-		Title:       "Aether",
+		Title:       "Waifer",
 		Width:       900,
 		Height:      700,
 		StartHidden: false,
@@ -101,12 +101,12 @@ func main() {
 			app,
 		},
 		Linux: &wailslinux.Options{
-			ProgramName: "Aether",
+			ProgramName: "Waifer",
 			// A non-nil Linux options struct bypasses Wails' GPU-safe default.
 			WebviewGpuPolicy: wailslinux.WebviewGpuPolicyNever,
 		},
 		Windows: &wailswindows.Options{
-			// Follow the active Windows app theme; Aether switches it when a
+			// Follow the active Windows app theme; Waifer switches it when a
 			// light or dark palette is applied.
 			Theme: wailswindows.SystemDefault,
 		},
@@ -115,8 +115,8 @@ func main() {
 			WebviewIsTransparent: true,
 			WindowIsTranslucent:  false,
 			About: &wailsmac.AboutInfo{
-				Title:   "Aether",
-				Message: "Desktop Theming Application",
+				Title:   "Waifer",
+				Message: "Windows Theme Engine",
 			},
 		},
 	})

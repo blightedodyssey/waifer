@@ -10,7 +10,7 @@
     import SearchIcon from '$lib/components/shared/SearchIcon.svelte';
     import Kbd from '$lib/components/shared/Kbd.svelte';
     import ReleaseIndicator from '$lib/components/layout/ReleaseIndicator.svelte';
-    import aetherLogo from '../../../assets/aether-logo.png';
+    import waiferLogo from '../../../assets/waifer-logo.svg';
     import {
         getOmarchyAvailable,
         initOmarchyCapabilities,
@@ -115,8 +115,8 @@
         onclick={() => setActiveTab('editor')}
         title="Editor"
     >
-        <img src={aetherLogo} alt="" class="h-[18px] w-[18px] object-contain" />
-        <span>AETHER</span>
+        <img src={waiferLogo} alt="" class="h-[18px] w-[18px] object-contain" />
+        <span>WAIFER</span>
     </button>
     <div class="bg-border my-3 mr-1 w-px shrink-0" aria-hidden="true"></div>
     <nav

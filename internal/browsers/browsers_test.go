@@ -64,7 +64,7 @@ func TestExtensionDirOnWindows(t *testing.T) {
 	t.Setenv("LOCALAPPDATA", tempDir)
 
 	got := ExtensionDir()
-	want := filepath.Join(tempDir, "Aether", "browser-theme")
+	want := filepath.Join(tempDir, "Waifer", "browser-theme")
 	if got != want {
 		t.Errorf("ExtensionDir() = %q, want %q", got, want)
 	}
