@@ -113,6 +113,15 @@ func ApplyTheme(vars map[string]string) (applied []string, warnings []string) {
 	} else {
 		applied = append(applied, "webui-extension")
 	}
+
+	// Native frame/toolbar color via the BrowserThemeColor policy. Running
+	// Chromium-family browsers pick the value up live; browsers that are not
+	// installed are skipped.
+	if written, err := applyBrowserFramePolicy(vars); err != nil {
+		warnings = append(warnings, fmt.Sprintf("browser frame policy: %v", err))
+	} else if written > 0 {
+		applied = append(applied, "browser-frame-policy")
+	}
 	
 	// Firefox
 	if prof, err := findFirefoxProfile(); err == nil && prof != "" {

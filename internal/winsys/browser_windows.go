@@ -37,11 +37,13 @@ func restoreFirefoxTheme() error {
 	return restoreFirefoxUserChrome(profile)
 }
 
-// restoreChromeTheme removes Aether's browser theme policy so Chrome returns to
-// the user's own theme after "Revert system theme".
+// restoreChromeTheme removes Aether's browser frame-color policies so
+// Chromium-family browsers return to the user's own theme after "Revert
+// system theme". Vivaldi and Opera are included to clear values written by
+// older Waifer versions.
 func restoreChromeTheme() error {
 	var errs []error
-	for _, keyPath := range []string{chromePolicyKey, chromiumPolicyKey} {
+	for _, keyPath := range []string{chromePolicyKey, chromiumPolicyKey, bravePolicyKey, vivaldiPolicyKey, operaPolicyKey} {
 		key, err := registry.OpenKey(registry.CURRENT_USER, keyPath, registry.SET_VALUE)
 		if err != nil {
 			if errors.Is(err, registry.ErrNotExist) {

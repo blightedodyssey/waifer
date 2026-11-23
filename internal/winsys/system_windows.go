@@ -28,7 +28,6 @@ func SetAccentColor(hex string) error {
 		dwordValue(personalizeKey, colorPrevalenceKey, 1),
 		dwordValue(personalizeKey, "EnableTransparency", 1),
 	)
-	values = append(values, chromeThemeValues(map[string]string{"accent": hex})...)
 	if err := writeThemeRegistry(values); err != nil {
 		return err
 	}

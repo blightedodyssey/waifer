@@ -89,16 +89,9 @@ func syncAllBrowsersNative(p WaiferPalette) {
 		p.Background, p.Surface, p.Foreground, p.Accent, p.Red, p.Green, p.Yellow, p.Blue, p.Purple, p.Cyan)
 	_ = os.WriteFile(filepath.Join(waiferDir, "theme.css"), []byte(css), 0644)
 
-	policies := []string{
-		`HKCU\Software\Policies\Google\Chrome`,
-		`HKCU\Software\Policies\Chromium`,
-		`HKCU\Software\Policies\BraveSoftware\Brave`,
-		`HKCU\Software\Policies\Vivaldi`,
-		`HKCU\Software\Policies\Opera Software`,
-	}
-	for _, pol := range policies {
-		runHidden("reg", "add", pol, "/v", "BrowserThemeColor", "/t", "REG_SZ", "/d", p.Background, "/f")
-	}
+	// BrowserThemeColor policy values are written by internal/browsers
+	// (applyBrowserFramePolicy) during the theme Apply pipeline, so the CLI
+	// and GUI paths stay in sync and uninstalled browsers are skipped.
 
 	ffRoot := filepath.Join(os.Getenv("APPDATA"), "Mozilla", "Firefox", "Profiles")
 	if entries, err := os.ReadDir(ffRoot); err == nil {

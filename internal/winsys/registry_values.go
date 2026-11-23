@@ -20,6 +20,9 @@ const (
 	personalizeKey          = `Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`
 	chromePolicyKey         = `Software\Policies\Google\Chrome`
 	chromiumPolicyKey       = `Software\Policies\Chromium`
+	bravePolicyKey          = `Software\Policies\BraveSoftware\Brave`
+	vivaldiPolicyKey        = `Software\Policies\Vivaldi`
+	operaPolicyKey          = `Software\Policies\Opera Software`
 	controlPanelColorsKey   = `Control Panel\Colors`
 	colorPrevalenceKey      = "ColorPrevalence"
 )
@@ -148,8 +151,9 @@ func accentThemeValues(vars map[string]string) ([]registryValue, error) {
 
 // systemThemeValues returns every Windows shell value for a theme. The
 // returned slice is written in one registry transaction: personalization,
-// accent/title-bar colors, Control Panel color scheme, Explorer AccentPalette,
-// and Chrome's accent policy all commit together (or not at all).
+// accent/title-bar colors, Control Panel color scheme and Explorer AccentPalette
+// all commit together (or not at all). Chrome-family frame colors are not part
+// of the transaction: internal/browsers owns the BrowserThemeColor policy.
 func systemThemeValues(vars map[string]string, lightMode bool) ([]registryValue, error) {
 	appsLight := uint32(1)
 	systemLight := uint32(1)
@@ -191,7 +195,6 @@ func systemThemeValues(vars map[string]string, lightMode bool) ([]registryValue,
 		})
 	}
 
-	values = append(values, chromeThemeValues(vars)...)
 	return values, nil
 }
 
@@ -290,19 +293,4 @@ func buildAccentPalette(vars map[string]string) []byte {
 
 func mix(a, b uint8, weight float64) byte {
 	return byte(math.Round(float64(a)*(1-weight) + float64(b)*weight))
-}
-
-// chromeThemeValues configures Chrome's policy-backed theme color. Chrome reads
-// these per-profile policies from HKCU without elevation, and dynamically
-// refreshes them when the policy store changes. Chromium uses the same policy
-// under its own vendor key.
-func chromeThemeValues(vars map[string]string) []registryValue {
-	accent := normalizeHex(vars["accent"])
-	if accent == "" {
-		return nil
-	}
-	return []registryValue{
-		stringValue(chromePolicyKey, "BrowserThemeColor", accent),
-		stringValue(chromiumPolicyKey, "BrowserThemeColor", accent),
-	}
 }

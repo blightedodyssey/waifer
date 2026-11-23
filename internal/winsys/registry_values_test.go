@@ -95,23 +95,6 @@ func TestSystemThemeValuesWithoutAccent(t *testing.T) {
 	}
 }
 
-func TestChromeThemeValues(t *testing.T) {
-	values := chromeThemeValues(map[string]string{"accent": "#C09EF5"})
-	got := registryMap(values)
-	for _, key := range []string{chromePolicyKey, chromiumPolicyKey} {
-		value, ok := got[key+`\BrowserThemeColor`]
-		if !ok {
-			t.Fatalf("missing %s BrowserThemeColor", key)
-		}
-		if value.Type != registrySZ {
-			t.Errorf("%s BrowserThemeColor type = %d, want SZ", key, value.Type)
-		}
-		if value.String != "#c09ef5" {
-			t.Errorf("%s BrowserThemeColor = %q, want #c09ef5", key, value.String)
-		}
-	}
-}
-
 func TestColorConversion(t *testing.T) {
 	abgr, err := abgrColor("#c09ef5")
 	if err != nil {
@@ -135,7 +118,7 @@ func TestColorConversion(t *testing.T) {
 	}
 }
 
-func TestRegistryTransactionCoversSystemAndChrome(t *testing.T) {
+func TestRegistryTransactionCoversSystem(t *testing.T) {
 	values, err := systemThemeValues(map[string]string{
 		"accent":     "#c09ef5",
 		"background": "#141114",
@@ -153,10 +136,13 @@ func TestRegistryTransactionCoversSystemAndChrome(t *testing.T) {
 		`Themes\Personalize\AppsUseLightTheme`,
 		`DWM\AccentColor`,
 		`DWM\AccentColorInactive`,
-		`Policies\Google\Chrome\BrowserThemeColor`,
 	} {
 		if !strings.Contains(all, want) {
 			t.Errorf("transaction is missing %s", want)
 		}
+	}
+	// Frame colors are owned by internal/browsers, not the system transaction.
+	if strings.Contains(all, "BrowserThemeColor") {
+		t.Error("BrowserThemeColor should not be part of the system transaction")
 	}
 }
