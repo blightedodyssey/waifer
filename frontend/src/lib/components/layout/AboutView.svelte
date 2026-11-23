@@ -1,6 +1,6 @@
-<script lang="ts">
+﻿<script lang="ts">
     import {openURL} from '$lib/utils/browser';
-    import aetherLogo from '../../../assets/aether-logo.png';
+    import waiferLogo from '../../../assets/waifer-logo.svg';
 
     type Link = {label: string; url: string; description: string};
 
@@ -32,18 +32,18 @@
 <div class="flex h-full items-center justify-center overflow-y-auto p-10">
     <div class="flex max-w-[440px] flex-col items-center gap-3.5 text-center">
         <img
-            src={aetherLogo}
-            alt="Aether"
+            src={waiferLogo}
+            alt="Waifer"
             class="h-[72px] w-[72px] object-contain"
         />
         <div>
-            <h1 class="text-fg-primary text-[24px] font-semibold">Aether</h1>
+            <h1 class="text-fg-primary text-[24px] font-semibold">Waifer</h1>
             <p class="text-fg-dimmed mt-1 font-mono text-[12px] font-medium">
                 v{__APP_VERSION__}
             </p>
         </div>
         <p class="text-fg-secondary text-pretty text-[13px] leading-[1.55]">
-            Aether extracts color palettes from wallpapers and applies cohesive
+            Waifer extracts color palettes from wallpapers and applies cohesive
             themes across your Linux desktop. Built with Wails, Go, and Svelte
             5.
         </p>
@@ -65,9 +65,9 @@
                 type="button"
                 class="text-fg-secondary hover:text-fg-primary underline underline-offset-2 transition-colors"
                 onclick={() => openURL(AUTHOR_URL)}
-                title="Author's X">Bjarne Øverli</button
+                title="Author's X">Bjarne Ã˜verli</button
             >
-            · © {new Date().getFullYear()} · MIT License
+            Â· Â© {new Date().getFullYear()} Â· MIT License
         </p>
     </div>
 </div>

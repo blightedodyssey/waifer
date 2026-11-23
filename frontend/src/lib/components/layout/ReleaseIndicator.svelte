@@ -1,4 +1,4 @@
-<script lang="ts">
+﻿<script lang="ts">
     import {onMount} from 'svelte';
     import {showToast} from '$lib/stores/ui.svelte';
     import {getIsWindows} from '$lib/stores/platform.svelte';
@@ -19,11 +19,11 @@
     let release = $state<ReleaseStatus | null>(null);
     let title = $derived(
         status === 'checking'
-            ? 'Checking for Aether updates'
+            ? 'Checking for Waifer updates'
             : status === 'available'
-              ? `Aether ${release?.latestVersion} is available. Click to view release`
+              ? `Waifer ${release?.latestVersion} is available. Click to view release`
               : status === 'current'
-                ? `Aether ${release?.currentVersion} is up to date. Click to check again`
+                ? `Waifer ${release?.currentVersion} is up to date. Click to check again`
                 : 'Could not check for updates. Click to try again'
     );
     let signalClass = $derived(
@@ -69,7 +69,7 @@
                 );
                 BrowserOpenURL(release.releaseURL);
             } catch {
-                showToast('Open your browser and visit the Aether releases page', 4000);
+                showToast('Open your browser and visit the Waifer releases page', 4000);
             }
             return;
         }
@@ -80,11 +80,11 @@
             );
             await StartUpgrade();
             showToast(
-                'Upgrade opened in a terminal. Restart Aether when it completes.',
+                'Upgrade opened in a terminal. Restart Waifer when it completes.',
                 6000
             );
         } catch {
-            showToast('Could not open a terminal. Run: aether upgrade', 6000);
+            showToast('Could not open a terminal. Run: waifer upgrade', 6000);
         }
     }
 

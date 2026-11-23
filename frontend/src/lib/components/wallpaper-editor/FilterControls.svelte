@@ -1,4 +1,4 @@
-<script lang="ts">
+﻿<script lang="ts">
     import {debounce} from '$lib/utils/debounce';
     import ExpandableSection from '$lib/components/shared/ExpandableSection.svelte';
     import SectionLabel from '$lib/components/shared/SectionLabel.svelte';
@@ -75,7 +75,7 @@
         return Math.max(min, Math.min(max, n));
     }
 
-    // Auto-enhance handlers — each analyses the image and applies a targeted
+    // Auto-enhance handlers â€” each analyses the image and applies a targeted
     // change. All three are individually reversible via undo.
     function handleAutoLevels() {
         if (histogram.length !== 256) return;
@@ -105,7 +105,7 @@
         }
         filters = {...filters, temperature, tint};
         debouncedPreview();
-        showToast(`Auto WB · temp ${temperature}, tint ${tint}`);
+        showToast(`Auto WB Â· temp ${temperature}, tint ${tint}`);
     }
 
     function handleStrength(v: number) {
@@ -166,7 +166,7 @@
                 JSON.stringify(customPresets)
             );
         } catch {
-            // quota exceeded or storage disabled — silent fail
+            // quota exceeded or storage disabled â€” silent fail
         }
     }
 
@@ -215,7 +215,7 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'aether-presets.json';
+        a.download = 'waifer-presets.json';
         a.click();
         URL.revokeObjectURL(url);
     }
@@ -251,7 +251,7 @@
         input.click();
     }
 
-    // Current theme palette — the colors.toml turned into pickable LUT stops.
+    // Current theme palette â€” the colors.toml turned into pickable LUT stops.
     // Filter out duplicates and empties so the picker only shows distinct colors.
     let paletteColors = $derived.by(() => {
         const seen = new Set<string>();
@@ -303,7 +303,7 @@
 
     // Render the actual effective LUT as a data-URL strip, so the preview bar
     // shows exactly what will be applied to the image (HSL-space colorize with
-    // luminance pinned to source) — not a naive straight-RGB gradient between
+    // luminance pinned to source) â€” not a naive straight-RGB gradient between
     // stops, which would misrepresent the grade.
     let rampPreviewUrl = $derived.by(() => {
         if (filters.paletteStops.length < 2) return '';
@@ -498,7 +498,7 @@
     ];
 
     function applyPreset(preset: {name: string; values: Partial<Filters>}) {
-        // Preset values that are absent leave the current state intact —
+        // Preset values that are absent leave the current state intact â€”
         // built-in presets (style-only) don't clobber crop/rotate/strength/
         // curve. Custom presets saved with those fields do restore them.
         const v = preset.values;
@@ -698,7 +698,7 @@
 
 <div class="flex h-full flex-col">
     <div class="flex-1 overflow-y-auto">
-        <!-- Master strength + auto-enhance — pinned above expandable sections. -->
+        <!-- Master strength + auto-enhance â€” pinned above expandable sections. -->
         <section class="border-border bg-bg-elevated/30 space-y-3 border-b p-3">
             <div class="space-y-1.5">
                 <div class="flex items-center justify-between gap-1">
@@ -777,7 +777,7 @@
                         class="text-fg-secondary hover:text-fg-primary border-border hover:bg-bg-surface border py-1.5 text-[10px] font-medium transition-colors"
                         onclick={handleAutoWhiteBalance}
                         disabled={!imgEl}
-                        title="Auto white balance via gray-world assumption — equalize channel averages"
+                        title="Auto white balance via gray-world assumption â€” equalize channel averages"
                         >White Bal.</button
                     >
                 </div>
@@ -831,7 +831,7 @@
                 <div class="space-y-3 pt-1">
                     <p class="text-fg-dimmed text-[10px] leading-relaxed">
                         Click up to {MAX_PALETTE_STOPS} theme colors to build a tone
-                        ramp (shadows → highlights). Preserves original brightness;
+                        ramp (shadows â†’ highlights). Preserves original brightness;
                         only repaints hue and saturation.
                     </p>
 
@@ -853,10 +853,10 @@
                                     {capped ? 'opacity-30' : ''}"
                                 style="background-color: {hex}"
                                 title={picked
-                                    ? `Stop ${idx + 1} · ${hex} — click to remove`
+                                    ? `Stop ${idx + 1} Â· ${hex} â€” click to remove`
                                     : capped
                                       ? `Max ${MAX_PALETTE_STOPS} stops`
-                                      : `${hex} — click to add as stop`}
+                                      : `${hex} â€” click to add as stop`}
                                 disabled={capped}
                                 onclick={() => togglePaletteStop(hex)}
                             >
@@ -872,7 +872,7 @@
                         {/each}
                     </div>
 
-                    <!-- Ramp preview — shows the actual LUT (what each source
+                    <!-- Ramp preview â€” shows the actual LUT (what each source
                     luminance maps to), not a naive stop-to-stop RGB gradient.
                     Auto-sorted by luminance, so shadows are on the left. -->
                     <div class="space-y-1.5">
@@ -881,8 +881,8 @@
                                 {filters.paletteStops.length === 0
                                     ? 'No stops selected'
                                     : filters.paletteStops.length === 1
-                                      ? '1 stop — pick one more'
-                                      : `${filters.paletteStops.length} stops · auto-sorted`}
+                                      ? '1 stop â€” pick one more'
+                                      : `${filters.paletteStops.length} stops Â· auto-sorted`}
                             </span>
                             {#if filters.paletteStops.length > 0}
                                 <button
@@ -957,7 +957,7 @@
                                 )}
                         />
                         <p class="text-fg-dimmed text-[9px] leading-snug">
-                            ≤ 50% reads as a tint · ≥ 60% rebuilds the image in
+                            â‰¤ 50% reads as a tint Â· â‰¥ 60% rebuilds the image in
                             the palette.
                         </p>
                     </div>
@@ -989,7 +989,7 @@
                     : ''}
             >
                 <div class="space-y-5 pt-1">
-                    <!-- Rotate & Flip — baked into the exported image -->
+                    <!-- Rotate & Flip â€” baked into the exported image -->
                     <div class="space-y-2">
                         <div class="flex items-center justify-between">
                             <span
@@ -1009,7 +1009,7 @@
                                 type="button"
                                 class="text-fg-secondary hover:text-fg-primary border-border hover:bg-bg-surface flex items-center justify-center border py-2 transition-colors"
                                 onclick={() => rotateBy(-90)}
-                                title="Rotate 90° counter-clockwise ( [ )"
+                                title="Rotate 90Â° counter-clockwise ( [ )"
                                 aria-label="Rotate counter-clockwise"
                             >
                                 <svg
@@ -1029,7 +1029,7 @@
                                 type="button"
                                 class="text-fg-secondary hover:text-fg-primary border-border hover:bg-bg-surface flex items-center justify-center border py-2 transition-colors"
                                 onclick={() => rotateBy(90)}
-                                title="Rotate 90° clockwise ( ] )"
+                                title="Rotate 90Â° clockwise ( ] )"
                                 aria-label="Rotate clockwise"
                             >
                                 <svg
@@ -1112,7 +1112,7 @@
                         </div>
                         {#if filters.rotate !== 0}
                             <span class="text-fg-dimmed text-[10px]"
-                                >Rotated {filters.rotate}°</span
+                                >Rotated {filters.rotate}Â°</span
                             >
                         {/if}
                     </div>
@@ -1324,7 +1324,7 @@
                                                 deleteCustomPreset(preset.name)}
                                             title="Delete preset"
                                             aria-label="Delete {preset.name}"
-                                            >✕</button
+                                            >âœ•</button
                                         >
                                     </div>
                                 {/each}

@@ -1,4 +1,4 @@
-<script lang="ts">
+﻿<script lang="ts">
     import {onMount} from 'svelte';
     import {getSettings, updateSettings, isAppIncluded, setAppIncluded} from '$lib/stores/settings.svelte';
     import {showToast, getActiveTab, setActiveTab} from '$lib/stores/ui.svelte';
@@ -44,7 +44,7 @@
     let cliCommand = $state('');
     let isWindows = $state(false);
 
-    // Light/Dark scheduler — auto day/night blueprint switching.
+    // Light/Dark scheduler â€” auto day/night blueprint switching.
     let scheduler = $state<schedulerModels.Settings>({
         enabled: false,
         light_blueprint: '',
@@ -161,7 +161,7 @@
                 Settings
             </h1>
             <p class="text-fg-secondary mt-2 text-[13px] leading-relaxed">
-                Configure where Aether finds local wallpapers and manage the
+                Configure where Waifer finds local wallpapers and manage the
                 ecosystem integration.
             </p>
         </header>
@@ -218,7 +218,7 @@
                     onclick={chooseWallpaperFolder}
                     disabled={choosingFolder}
                 >
-                    {choosingFolder ? 'Choosing…' : 'Choose folder…'}
+                    {choosingFolder ? 'Choosingâ€¦' : 'Choose folderâ€¦'}
                 </button>
             </div>
         </section>
@@ -243,7 +243,7 @@
                             </div>
                             <p class="text-fg-dimmed mt-[3px] text-[12px]">
                                 Switch between a light and a dark blueprint
-                                automatically. 06:00–18:00 local time is light.
+                                automatically. 06:00â€“18:00 local time is light.
                             </p>
                         </div>
                         <Switch
@@ -283,7 +283,7 @@
                     <div class="flex items-center justify-between gap-4">
                         <p class="text-fg-dimmed text-[11.5px]">
                             {scheduler.mode === 'schedule'
-                                ? 'Following the fixed 06:00–18:00 schedule.'
+                                ? 'Following the fixed 06:00â€“18:00 schedule.'
                                 : 'Following the Windows system light/dark mode.'}
                         </p>
                         <button
@@ -292,7 +292,7 @@
                             onclick={saveScheduler}
                             disabled={schedulerBusy}
                         >
-                            {schedulerBusy ? 'Saving…' : 'Save'}
+                            {schedulerBusy ? 'Savingâ€¦' : 'Save'}
                         </button>
                     </div>
                 </div>
@@ -312,8 +312,8 @@
                 Omarchy Ecosystem
             </h2>
             <p class="text-fg-secondary mb-4 text-[12px]">
-                Aether stores themes, user drop-in templates, and post-apply
-                hooks under <code class="text-fg-primary">%LOCALAPPDATA%\Aether\</code>.
+                Waifer stores themes, user drop-in templates, and post-apply
+                hooks under <code class="text-fg-primary">%LOCALAPPDATA%\Waifer\</code>.
             </p>
 
             <div class="grid gap-2">
@@ -358,7 +358,7 @@
                             {#if aetherDirStatus?.hasHookScript}
                                 <span class="text-success">Active:</span> theme-set.ps1 / .bat
                             {:else}
-                                No post-apply hook script — add
+                                No post-apply hook script â€” add
                                 <code class="text-fg-secondary font-mono text-[11px]">theme-set.ps1</code>
                                 or
                                 <code class="text-fg-secondary font-mono text-[11px]">theme-set.bat</code>
@@ -421,7 +421,7 @@
                 App targets
             </h2>
             <p class="text-fg-secondary mb-4 text-[12px]">
-                Choose which apps Aether updates when you apply a theme.
+                Choose which apps Waifer updates when you apply a theme.
             </p>
             <div class="grid gap-2">
                 {#each appTargets as target}

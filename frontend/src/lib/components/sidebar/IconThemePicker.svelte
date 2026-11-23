@@ -1,4 +1,4 @@
-<script lang="ts">
+﻿<script lang="ts">
     import {onMount} from 'svelte';
     import Modal from '$lib/components/shared/Modal.svelte';
     import DialogHeader from '$lib/components/shared/DialogHeader.svelte';
@@ -35,11 +35,11 @@
     );
     let summary = $derived(
         selection.mode === 'automatic'
-            ? 'Automatic · Yaru match'
+            ? 'Automatic Â· Yaru match'
             : selectedTheme
               ? selectedTheme.name
               : missing
-                ? `${selection.id} · Missing`
+                ? `${selection.id} Â· Missing`
                 : selection.id
     );
     // The picker button shows the theme name and a dimmed detail.
@@ -172,7 +172,7 @@
             bind:value={query}
             type="search"
             class="bg-bg-primary border-border text-fg-primary focus:border-accent h-[34px] min-w-0 flex-1 border px-2.5 text-[13px] outline-none"
-            placeholder="Search installed themes…"
+            placeholder="Search installed themesâ€¦"
             aria-label="Search installed icon themes"
         />
         <button
@@ -181,7 +181,7 @@
             onclick={() => loadThemes(true)}
             disabled={loading}
         >
-            {loading ? 'Refreshing…' : 'Refresh'}
+            {loading ? 'Refreshingâ€¦' : 'Refresh'}
         </button>
     </div>
 
@@ -211,10 +211,10 @@
             ></span>
             <span>
                 <span class="text-fg-primary block text-[12px] font-medium"
-                    >Automatic · Color-matched Yaru</span
+                    >Automatic Â· Color-matched Yaru</span
                 >
                 <span class="text-fg-dimmed mt-0.5 block text-[11px]">
-                    Uses Aether’s palette-derived Yaru variant
+                    Uses Aetherâ€™s palette-derived Yaru variant
                 </span>
             </span>
         </button>
@@ -233,10 +233,10 @@
                 ></span>
                 <span>
                     <span class="text-warning block text-[12px] font-medium"
-                        >{selection.id} · Missing</span
+                        >{selection.id} Â· Missing</span
                     >
                     <span class="text-fg-dimmed mt-0.5 block text-[11px]">
-                        This icon theme is not installed. Aether preserves its
+                        This icon theme is not installed. Waifer preserves its
                         ID.
                     </span>
                 </span>
@@ -248,7 +248,7 @@
                 class="text-fg-dimmed px-3 py-6 text-center text-[11.5px]"
                 role="status"
             >
-                Loading installed icon themes…
+                Loading installed icon themesâ€¦
             </p>
         {:else if loaded && themes.length === 0}
             <p class="text-fg-dimmed px-3 py-6 text-center text-[11.5px]">

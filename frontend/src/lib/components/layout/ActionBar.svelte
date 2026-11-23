@@ -1,4 +1,4 @@
-<script lang="ts">
+﻿<script lang="ts">
     import type {main} from '../../../../wailsjs/go/models';
     import {
         getIsApplying,
@@ -278,7 +278,7 @@
             await ClearTheme();
             showToast('Reverted to system theme');
         } catch {
-            showToast('Couldn’t revert — see logs for details');
+            showToast('Couldnâ€™t revert â€” see logs for details');
         }
     }
 
@@ -323,7 +323,7 @@
                     ? getNativeAppOverrides()
                     : getAppOverrides(),
             } as unknown as main.ExportThemeRequest);
-            // Path ends with .../omarchy-{slug}-theme — pull the slug so the
+            // Path ends with .../omarchy-{slug}-theme â€” pull the slug so the
             // user can see what name actually went into Omarchy's menu.
             const slug =
                 path.match(/omarchy-(.+)-theme$/)?.[1] ?? exportName.trim();
@@ -603,7 +603,7 @@
                     Targets
                 </button>
             {/if}
-            <span title="Aether version">v{__APP_VERSION__}</span>
+            <span title="Waifer version">v{__APP_VERSION__}</span>
         </div>
 
         <div class="relative">
@@ -634,7 +634,7 @@
             </button>
             {#if showMoreMenu}
                 {#snippet moreItems()}
-                    {#each [{kind: 'revert', label: 'Revert system theme…', hint: 'Roll the desktop back to its default theme'}, {kind: 'reset', label: 'Reset editor…', hint: 'Clear palette, wallpaper and overrides'}] as const as item}
+                    {#each [{kind: 'revert', label: 'Revert system themeâ€¦', hint: 'Roll the desktop back to its default theme'}, {kind: 'reset', label: 'Reset editorâ€¦', hint: 'Clear palette, wallpaper and overrides'}] as const as item}
                         <button
                             type="button"
                             class="hover:bg-bg-hover flex w-full flex-col gap-px px-3 py-2 text-left transition-colors"
@@ -657,12 +657,12 @@
                         aria-hidden="true"
                     ></div>
                     {@render menuItem(
-                        'Export .waifer bundle…',
+                        'Export .waifer bundleâ€¦',
                         'Zip colors + wallpaper',
                         exportWaiferBundle
                     )}
                     {@render menuItem(
-                        'Import .waifer bundle…',
+                        'Import .waifer bundleâ€¦',
                         'Load a shared theme',
                         importWaiferBundle
                     )}
@@ -736,9 +736,9 @@
                     ? 'Apply updates to the saved theme folder (Ctrl+Enter applies only)'
                     : 'Apply theme (Ctrl+Enter applies only)'}
             >
-                <span>{applying ? 'Applying…' : 'Apply theme'}</span>
+                <span>{applying ? 'Applyingâ€¦' : 'Apply theme'}</span>
                 {#if !applying}
-                    <KbdInverse>Ctrl ↵</KbdInverse>
+                    <KbdInverse>Ctrl â†µ</KbdInverse>
                 {/if}
             </button>
             <button
@@ -766,11 +766,11 @@
             {#if showApplyMenu}
                 {#snippet applyItems()}
                     {@render menuItem(
-                        'Save as new folder…',
+                        'Save as new folderâ€¦',
                         'Ctrl J',
                         saveThemeAsNew
                     )}
-                    {@render menuItem('Apply only', 'Ctrl ↵', applyTheme)}
+                    {@render menuItem('Apply only', 'Ctrl â†µ', applyTheme)}
                 {/snippet}
                 {@render menuPanel('right', 'min-w-[220px]', applyItems)}
             {/if}
@@ -860,13 +860,13 @@
                         >Include apps</span
                     >
                     <span class="text-fg-dimmed text-[11.5px]">
-                        {exportSelectedCount} of {exportAppCount} selected ·
+                        {exportSelectedCount} of {exportAppCount} selected Â·
                         <button
                             type="button"
                             class="text-accent hover:text-accent-hover"
                             onclick={() => setAllExportApps(true)}>All</button
                         >
-                        ·
+                        Â·
                         <button
                             type="button"
                             class="text-accent hover:text-accent-hover"

@@ -1,4 +1,4 @@
-<script lang="ts">
+﻿<script lang="ts">
     import {onMount} from 'svelte';
     import {
         isAppIncluded,
@@ -70,7 +70,7 @@
 >
     <span
         class="text-fg-dimmed shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em]"
-        title="Aether app templates included as overrides"
+        title="Waifer app templates included as overrides"
     >
         Targets
     </span>
@@ -84,7 +84,7 @@
                     ? 'bg-accent-muted border-accent text-accent'
                     : 'border-border text-fg-secondary hover:text-fg-primary hover:border-border-focus'}"
                 title={on
-                    ? `${appLabel(app)} will use Aether's template override`
+                    ? `${appLabel(app)} will use Waifer's template override`
                     : `${appLabel(app)} will use the default generated template unless it has color overrides`}
                 aria-pressed={on}
             >
