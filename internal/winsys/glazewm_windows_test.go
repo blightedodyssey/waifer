@@ -5,6 +5,7 @@ package winsys
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -108,10 +109,16 @@ func TestApplyGlazeWMThemeWritesV3WindowEffects(t *testing.T) {
 	if strings.Contains(got, "inner_gaps:") || strings.Contains(got, "outer_gaps:") {
 		t.Errorf("v2 gap keys survived\n%s", got)
 	}
-	for _, want := range []string{"inner_gap: 2", "top: 50", "right: 2", "bottom: 2", "left: 2"} {
+	// GlazeWM v3.10+ rejects bare integers (LengthValueDe enum), so gaps are
+	// emitted as quoted pixel strings.
+	for _, want := range []string{`inner_gap: "2px"`, `top: "50px"`, `right: "2px"`, `bottom: "2px"`, `left: "2px"`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("gaps missing %q\n%s", want, got)
 		}
+	}
+	// No bare-integer gap value may survive anywhere in the file.
+	if m := regexp.MustCompile(`(?m)^\s*(inner_gap|top|right|bottom|left):\s*[0-9]+\s*$`).FindString(got); m != "" {
+		t.Errorf("bare-integer gap value survived: %q\n%s", m, got)
 	}
 
 	// Windows Terminal gets exactly one tiling rule.

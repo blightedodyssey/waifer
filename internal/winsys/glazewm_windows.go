@@ -127,6 +127,10 @@ func windowEffectsBlock(accent, other string) []string {
 // gapsBlock rewrites the v2 `inner_gaps`/`outer_gaps` keys (silently ignored by
 // GlazeWM v3) into the v3 `inner_gap`/`outer_gap` schema and pins the tiling gap
 // to 2px. The top outer gap is preserved because it holds the status-bar offset.
+//
+// GlazeWM v3.10+ deserialises gaps with an untagged LengthValueDe enum that
+// rejects bare integers ("data did not match any variant ... at line 11
+// column 3"), so every value is emitted as a quoted pixel string ("2px").
 func gapsBlock(text []string) []string {
 	top := 50
 	if block := topLevelBlock(text, glazeWMGapsKey); block != nil {
@@ -136,12 +140,12 @@ func gapsBlock(text []string) []string {
 	}
 	return []string{
 		glazeWMGapsKey + ":",
-		fmt.Sprintf("  inner_gap: %d", glazeWMGapPx),
+		fmt.Sprintf("  inner_gap: \"%dpx\"", glazeWMGapPx),
 		"  outer_gap:",
-		fmt.Sprintf("    top: %d", top),
-		fmt.Sprintf("    right: %d", glazeWMGapPx),
-		fmt.Sprintf("    bottom: %d", glazeWMGapPx),
-		fmt.Sprintf("    left: %d", glazeWMGapPx),
+		fmt.Sprintf("    top: \"%dpx\"", top),
+		fmt.Sprintf("    right: \"%dpx\"", glazeWMGapPx),
+		fmt.Sprintf("    bottom: \"%dpx\"", glazeWMGapPx),
+		fmt.Sprintf("    left: \"%dpx\"", glazeWMGapPx),
 	}
 }
 

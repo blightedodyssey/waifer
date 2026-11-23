@@ -1,4 +1,4 @@
-<script lang="ts">
+﻿<script lang="ts">
     import {onMount} from 'svelte';
     import {
         getActiveTab,
@@ -115,7 +115,31 @@
         onclick={() => setActiveTab('editor')}
         title="Editor"
     >
-        <img src={waiferLogo} alt="" class="h-[18px] w-[18px] object-contain" />
+        <svg viewBox="0 0 16 16" class="h-[18px] w-[18px] shrink-0" shape-rendering="crispEdges" aria-hidden="true">
+<g fill="var(--color-accent, #7f5af0)">
+<rect x="0" y="3" width="2" height="2" />
+<rect x="1" y="5" width="2" height="2" />
+<rect x="2" y="7" width="2" height="2" />
+<rect x="3" y="9" width="4" height="2" />
+<rect x="4" y="11" width="2" height="2" />
+<rect x="7" y="5" width="2" height="2" />
+<rect x="6" y="7" width="4" height="2" />
+<rect x="14" y="3" width="2" height="2" />
+<rect x="13" y="5" width="2" height="2" />
+<rect x="12" y="7" width="2" height="2" />
+<rect x="9" y="9" width="4" height="2" />
+<rect x="10" y="11" width="2" height="2" />
+</g>
+<g fill="var(--color-fg-primary, #f4f4f8)">
+<rect x="0" y="3" width="2" height="1" />
+<rect x="14" y="3" width="2" height="1" />
+<rect x="7" y="5" width="2" height="1" />
+<rect x="1" y="5" width="1" height="1" />
+<rect x="2" y="7" width="1" height="1" />
+<rect x="3" y="9" width="1" height="1" />
+<rect x="4" y="11" width="1" height="1" />
+</g>
+</svg>
         <span>WAIFER</span>
     </button>
     <div class="bg-border my-3 mr-1 w-px shrink-0" aria-hidden="true"></div>
@@ -164,7 +188,7 @@
         >
             <SearchIcon size="h-[13px] w-[13px]" />
             <span class="hidden flex-1 truncate text-left xl:inline"
-                >Search commands…</span
+                >Search commandsâ€¦</span
             >
             <Kbd class="text-fg-dimmed">Ctrl P</Kbd>
         </button>
@@ -305,3 +329,4 @@
         </div>
     {/if}
 </header>
+
